@@ -1,0 +1,11 @@
+{
+  "name": "foodies-mania-crm",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Foodies Mania CRM - WhatsApp order console (static front end)",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs"
+  }
+}

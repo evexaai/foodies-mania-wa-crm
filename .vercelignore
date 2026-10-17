@@ -1,0 +1,5 @@
+# Local dev only — Vercel serves the static files directly.
+server.mjs
+
+# The original single-file prototype, kept in the repo for reference.
+Foodies Mania CRM.html
