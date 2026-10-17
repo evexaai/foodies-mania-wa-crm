@@ -1,0 +1,23 @@
+{
+  "name": "Foodies Mania CRM",
+  "short_name": "Foodies Mania",
+  "description": "WhatsApp order console — AI takes the order, you approve it, the kitchen cooks it, a rider takes it to the door.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#130b07",
+  "theme_color": "#130b07",
+  "categories": ["business", "food", "productivity"],
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" },
+    { "src": "assets/logo.webp", "sizes": "256x256", "type": "image/webp", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Delivery Orders", "url": "/?go=orders" },
+    { "name": "Live Conversations", "url": "/?go=chats" },
+    { "name": "Riders", "url": "/?go=riders" }
+  ]
+}

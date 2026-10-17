@@ -39,12 +39,25 @@ server.mjs        zero-dependency static server with live reload
   the rail to icons with just the Foodies Mania mark on top; on a phone or tablet
   the same button opens the sidebar as a drawer, so it never collapses there.
 - **Full screen** — double-click the Foodies Mania mark at the top of the sidebar.
-  That is the only way in, and it takes the whole dashboard. The kitchen screen no
-  longer has its own full-screen button.
-- **Kitchen lock** — the Kitchen page opens on one bar reading `Kitchen Manager`.
-  The password is empty, so pressing the arrow enters. Put a real one in
-  `S.set.kitchenPass` when you want it to bite. There is a Lock button on the
-  kitchen screen to step back out.
+  That is the only way in, and it takes the whole dashboard.
+- **Notifications you can get rid of** — every pop-up has an x, and on a phone you
+  can flick it to the right. Hovering one stops its timer. At most two stack on a
+  phone, three on a desktop. The switch inside the bell panel turns pop-ups off
+  altogether: alerts still land in the panel and still count on the bell, they
+  just stop appearing over your work. The bell shows a slash while that is off.
+- **Install it as an app** — with the manifest and the service worker in place,
+  Chrome shows its own install icon in the address bar. The **Install** button in
+  the top bar fires the same prompt, and only appears when the browser offers it.
+  Once installed it opens in its own window and still works if the line drops.
+- **Who is signed in decides what they see** — the login ID is matched against
+  Settings → Users. The sidebar only shows the sections that user is allowed to
+  open, and going anywhere else is refused. Sign in as `shahnawaz` for the owner's
+  view or `hamza` for a rider's.
+- **A rider's own screen** — a user with the Rider role lands on a screen built
+  for the road: what is on his bike, the address and a Call button for each drop,
+  whether to collect cash or not, and one big **Delivered** button. Riders never
+  get the voice — notifications only. The owner widens or narrows any of this from
+  Settings → Users → Access.
 
 ## Where to change things
 
@@ -54,9 +67,9 @@ Everything else reads from those variables, so changing `--or` reskins the app i
 both themes.
 
 `css/styles.css` is then sectioned: `login`, `app shell`, `primitives`, `KPI`,
-`orders board`, `drawer & modal`, `conversations`, `kitchen`, `riders`,
-`customers`, `bulk`, `menu`, `settings`, `responsive`, and the additions block at
-the end (theme, sidebar, kitchen lock, category availability, thumbnails, roles).
+`orders board`, `drawer & modal`, `conversations`, `riders`, `customers`, `bulk`,
+`menu`, `settings`, `responsive`, and the additions at the end (theme, sidebar,
+category switch, thumbnails, roles, rider screen, dismissible pop-ups).
 
 **Content and behaviour** — `js/app.js`, also sectioned with banner comments:
 
@@ -77,9 +90,28 @@ the end (theme, sidebar, kitchen lock, category availability, thumbnails, roles)
 `<symbol id="i-…">` for UI icons, `f-…` for food icons, used as
 `<svg class="i"><use href="#i-bike"/></svg>`.
 
-**Menu availability** — a single item has a switch, and so does a whole category.
-`isOn(item)` is the one check the AI agent uses; it is true only when the item and
-its category are both on.
+**Menu availability** — a single item has a switch, and so does a whole category:
+pick a category pill and its on/off switch appears right under the pills. `isOn(item)`
+is the one check the AI agent uses; it is true only when the item and its category
+are both on, so switching off BBQ silently takes all twelve BBQ items off the menu
+the agent quotes from.
+
+**Rider money** — three numbers, each one clickable for the orders behind it:
+
+| | what it means |
+| --- | --- |
+| `toTake(r)` | cash-on-delivery orders he is out with — money he has yet to collect |
+| `r.cash` | cash in his pocket since his last hand-in, shown as **Collected** |
+| `riderDone(r)` | everything he finished this shift |
+
+Only cash-on-delivery counts. A prepaid order adds nothing to either figure, and
+`roadCash()` — the **Cash out on the road** tile on the dashboard — is just the sum
+of every rider's `toTake`. **Receive** asks what was actually counted, so a short
+hand-in leaves the rest on his account.
+
+**There is no separate Kitchen page** — the kitchen queue is the *In kitchen*
+column on the Delivery Orders board, and that is where every "sent to kitchen"
+link now goes.
 
 **Campaign thumbnails** — each entry in `TPL` (in the `BULK MESSAGE` section)
 carries a `bg` gradient and three `art` icon ids. That is what draws the picture in
@@ -88,13 +120,23 @@ product photos by replacing `bg` with `url(assets/your-photo.jpg) center/cover`.
 
 **Staff access** — `PERMS` lists every section of the CRM and `ROLES` gives Admin,
 Kitchen and Rider their defaults. Adding a user asks for a role and then lets you
-tick sections individually; the role is only the starting point.
+tick sections individually; the role is only the starting point. A Rider user is
+also tied to a rider on the board (`riderId`), which is how his screen knows whose
+drops to show.
+
+**Install / offline** — `manifest.webmanifest` and `sw.js` at the project root.
+The worker is network-first, so a deploy is picked up straight away and the cache
+is only a fallback for a dropped connection. `assets/icon.svg` is the app icon.
 
 ## Notes
 
 - All state is in memory. A reload resets the demo — nothing is persisted and there
   is no backend. The only things remembered are your theme and sidebar choice.
 - The only network request is the Google Fonts stylesheet.
+- The whole chain is connected: the AI agent takes an order in a chat, that order
+  appears on the board for approval, moves through the kitchen column to a rider,
+  and the moment the rider marks it delivered the customer gets a closing message,
+  the cash moves onto that rider's sheet and the customer's history updates.
 - Voice uses the browser's own speech engine, so how human it sounds depends on
   which voices the device has. The app ranks them and takes the best — the online
   "Natural" / "Neural" voices sound like a person, the built-in offline ones do
@@ -102,6 +144,7 @@ tick sections individually; the role is only the starting point.
   pronunciation layer fixes the words an English engine mangles, so the owner
   reads as SHAH-NAWAAZ. For a voice that sounds the same on every device you need
   a cloud TTS service, which needs an API key and a small backend.
-- The Evexa AI contact panel in Settings → WhatsApp links to `evexa.ai`. Put your
-  real account-manager details in `evexaModal()` in `js/app.js`.
+- Settings → WhatsApp is read-only: status, the number, and a way to reach Evexa
+  AI at evexaai.com. Put your real account-manager details in `evexaModal()` in
+  `js/app.js`.
 - The original `Foodies Mania CRM.html` is kept as-is for reference.

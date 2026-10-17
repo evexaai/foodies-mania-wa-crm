@@ -98,13 +98,12 @@ const S={orders:[],omap:{},customers:[],cmap:{},riders:[],chats:[],notifs:[],cam
  users:[{id:'u1',name:'Shahnawaz Damani',login:'shahnawaz',pass:'fm@2025',on:true,role:'admin',perms:null},
   {id:'u2',name:'Kashif Ali',login:'kashif',pass:'counter12',on:true,role:'admin',perms:['dash','chats','orders','riders','customers','bulk']},
   {id:'u3',name:'Rizwan Shaikh',login:'rizwan',pass:'night#77',on:false,role:'kitchen',perms:null},
-  {id:'u4',name:'Imran Baloch',login:'imran',pass:'bike#44',on:true,role:'rider',perms:null},
+  {id:'u4',name:'Hamza Qureshi',login:'hamza',pass:'bike#44',on:true,role:'rider',riderId:'r0',perms:null},
   {id:'u5',name:'Nadia Siddiqui',login:'nadia',pass:'desk2025',on:true,role:'admin',perms:['dash','chats','orders','customers']}],
  set:{wa:true,waNo:'+92 335 2115129',takeNo:'0335-2115129',biz:'Foodies Mania',addr:'Shop 1, R12, Block 8, Federal B Area, Alyabad, near Tabba Heart Hospital, Karachi',phone:'021-37226172',open:'15:00',close:'05:00',
-   voice:true,lang:'en',vol:.9,voiceName:'',ev:{newChat:true,newOrder:true,needsHuman:true,kitchenReady:true,assigned:false,delivered:true,late:true,takeaway:false,wa:true},sim:true,autoKitchen:false,
+   voice:true,pop:true,lang:'en',vol:.9,voiceName:'',ev:{newChat:true,newOrder:true,needsHuman:true,kitchenReady:true,assigned:false,delivered:true,late:true,takeaway:false,wa:true},sim:true,autoKitchen:false,
    /* what the AI sends when a customer picks Takeaway. {number} is swapped for the takeaway number. */
-   takeMsg:'Takeaway ke liye please humare takeaway number par WhatsApp/call karein:\n📞 {number}\nWo aap ka order ready rakhenge. Shukriya!',
-   kitchenPass:''}};
+   takeMsg:'Takeaway ke liye please humare takeaway number par WhatsApp/call karein:\n📞 {number}\nWo aap ka order ready rakhenge. Shukriya!'}};
 
 /* customers */
 (function genCustomers(){
@@ -320,19 +319,37 @@ const Voice={ctx:null,last:{},voices:[],
 try{speechSynthesis.onvoiceschanged=()=>Voice.load()}catch(e){}
 
 /* ================= toasts + notifications ================= */
+/* A pop-up you can always get rid of: tap the x, or flick it to the right.
+   Whatever it said is still waiting in the bell panel afterwards. */
 function toast(title,sub,opt={}){
+  const box=$('#toasts');if(!box)return;
   const el=document.createElement('div');el.className='toast '+(opt.tone||'');
-  el.innerHTML=`<div class="ti">${ic(opt.icon||'bell')}</div><div class="grow"><b>${esc(title)}</b>${sub?`<small>${esc(sub)}</small>`:''}</div>`;
+  el.innerHTML=`<div class="ti">${ic(opt.icon||'bell')}</div><div class="grow"><b>${esc(title)}</b>${sub?`<small>${esc(sub)}</small>`:''}</div><button class="tcl" aria-label="Dismiss">${ic('x','sm')}</button>`;
+  let tmr=null,gone=false;
+  const bye=()=>{if(gone)return;gone=true;clearTimeout(tmr);el.classList.add('bye');setTimeout(()=>el.remove(),380)};
+  $('.tcl',el).onclick=e=>{e.stopPropagation();bye()};
   el.onclick=()=>{opt.go&&opt.go();bye()};
-  const box=$('#toasts');box.prepend(el);
-  while(box.children.length>3)box.lastChild.remove();
-  const bye=()=>{el.classList.add('bye');setTimeout(()=>el.remove(),380)};
-  setTimeout(bye,opt.ms||4600);
+  let x0=null,dx=0;                       /* flick it away */
+  el.addEventListener('pointerdown',e=>{if(e.target.closest('.tcl'))return;x0=e.clientX;dx=0;el.style.transition='none';try{el.setPointerCapture(e.pointerId)}catch(err){}});
+  el.addEventListener('pointermove',e=>{if(x0===null)return;dx=e.clientX-x0;
+    if(dx>0){el.style.transform=`translateX(${dx}px)`;el.style.opacity=String(Math.max(0,1-dx/170))}});
+  const end=()=>{if(x0===null)return;x0=null;el.style.transition='';
+    if(dx>64)bye();else{el.style.transform='';el.style.opacity=''}};
+  el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end);
+  el.addEventListener('mouseenter',()=>clearTimeout(tmr));
+  el.addEventListener('mouseleave',()=>{if(!gone)tmr=setTimeout(bye,2000)});
+  box.prepend(el);
+  const cap=innerWidth<=720?2:3;          /* a phone screen is small; never stack more than two */
+  while(box.children.length>cap)box.lastChild.remove();
+  tmr=setTimeout(bye,opt.ms||4600);
+  return el;
 }
+function clearToasts(){const b=$('#toasts');if(b)$$('.tcl',b).forEach(x=>x.click())}
 function notify(kind,title,sub,link,opt={}){
   S.notifs.unshift({id:'n'+Date.now()+Math.random(),kind,title,sub,t:now(),read:false,link});
   if(S.notifs.length>60)S.notifs.length=60;
-  toast(title,sub,{...opt,go:link?()=>go(link.page,link):null});
+  /* with pop-ups off it still lands in the bell panel and still rings the badge */
+  if(S.set.pop)toast(title,sub,{...opt,go:link?()=>go(link.page,link):null});
   Voice.say(kind);
   const b=$('#bellBtn');b.classList.remove('ring');void b.offsetWidth;b.classList.add('ring');
   changed();
@@ -351,7 +368,7 @@ function countUp(el,to,fmt=x=>Math.round(x).toLocaleString('en-US')){
   if(!el)return;const from=+el.dataset.v||0;el.dataset.v=to;
   if(from===to){el.textContent=fmt(to);return}
   const t0=performance.now(),dur=from===0?900:650;
-  const step=t=>{const p=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-p,3);el.textContent=fmt(from+(to-from)*e);if(p<1)requestAnimationFrame(step)};
+  const step=t=>{const p=Math.max(0,Math.min(1,(t-t0)/dur)),e=1-Math.pow(1-p,3);el.textContent=fmt(from+(to-from)*e);if(p<1)requestAnimationFrame(step)};
   requestAnimationFrame(step);
 }
 
@@ -369,11 +386,20 @@ const segOf=c=>{if(c.blocked)return 'blocked';if(c.since>=SHIFT0-7*DAY)return 'n
 const SEGNAME={vip:'VIP',new:'New',inactive:'Inactive',regular:'Regular',blocked:'Blocked'};
 const segTag=c=>{const s=segOf(c);return `<span class="tag ${s==='vip'?'t-vip':s==='new'?'t-approved':s==='inactive'?'t-cancelled':s==='blocked'?'t-cancelled':''}">${s==='vip'?ic('crown'):''}${SEGNAME[s]}</span>`};
 const freeRiders=()=>S.riders.filter(r=>r.status!=='off').sort((a,b)=>a.orders.length-b.orders.length||a.today-b.today);
+/* ---------- what a rider is carrying, and what he owes ----------
+   to take  = cash-on-delivery orders he is out with right now, not collected yet
+   collected= COD cash in his pocket since his last hand-in
+   delivered= orders he finished tonight                                        */
+const riderOut=r=>r.orders.map(id=>S.omap[id]).filter(Boolean);
+const toTake=r=>riderOut(r).filter(o=>o.pay==='COD').reduce((a,o)=>a+o.total,0);
+const riderDone=r=>S.orders.filter(o=>o.rider===r.id&&o.status==='delivered'&&o.t.delivered>=SHIFT0).sort((a,b)=>b.t.delivered-a.t.delivered);
+const riderHolding=r=>riderDone(r).filter(o=>o.pay==='COD'&&o.t.delivered>r.settledAt);
+const roadCash=()=>S.riders.reduce((a,r)=>a+toTake(r),0);
 
 /* ================= actions (the glue that interconnects every page) ================= */
 const A={
  approve(id,silent){const o=S.omap[id];if(!o||o.status!=='new')return;o.status='approved';o.t.approved=now();
-   if(!silent)toast('Sent to kitchen',`${o.id} · ${custName(o)} is now on the kitchen screen`,{icon:'chef',tone:'ok',go:()=>go('kitchen')});
+   if(!silent)toast('Sent to kitchen',`${o.id} · ${custName(o)} is queued in the kitchen`,{icon:'chef',tone:'ok',go:()=>go('orders',{tab:'kitchen'})});
    const ch=S.chats.find(c=>c.orderId===id);if(ch)pushMsg(ch,'ai',`Aap ka order ${o.id} confirm ho gaya hai aur kitchen mein chala gaya hai. Approx 35–45 min mein pohoch jayega.`);
    changed()},
  cancel(id,reason){const o=S.omap[id];if(!o)return;const wasOut=o.status==='out';o.status='cancelled';o.t.cancelled=now();o.cancelReason=reason||'Cancelled by staff';
@@ -580,21 +606,34 @@ function tick(){
 /* ================= router + chrome ================= */
 const NAV=[
  {id:'dash',t:'Dashboard',ic:'dash'},{id:'chats',t:'Live Conversations',ic:'chat'},{id:'orders',t:'Delivery Orders',ic:'bike'},
- {id:'kitchen',t:'Kitchen',ic:'chef'},{id:'riders',t:'Riders',ic:'helmet'},{h:'Grow'},{id:'bulk',t:'Bulk Message',ic:'send'},
+ {id:'riders',t:'Riders',ic:'helmet'},{h:'Grow'},{id:'bulk',t:'Bulk Message',ic:'send'},
  {id:'menu',t:'Menu Management',ic:'cloche'},{id:'customers',t:'Customers',ic:'users'},{id:'reports',t:'Payments & Reports',ic:'chart',soon:1},
  {id:'promos',t:'Promotions & Offers',ic:'tag',soon:1},{h:'Account'},{id:'settings',t:'Settings',ic:'gear'}];
-const BNAV=[{id:'dash',t:'Home',ic:'dash'},{id:'chats',t:'Chats',ic:'chat'},{id:'orders',t:'Orders',ic:'bike'},{id:'kitchen',t:'Kitchen',ic:'chef'},{id:'more',t:'More',ic:'bars'}];
+const BNAV=[{id:'dash',t:'Home',ic:'dash'},{id:'chats',t:'Chats',ic:'chat'},{id:'orders',t:'Orders',ic:'bike'},{id:'riders',t:'Riders',ic:'helmet'},{id:'more',t:'More',ic:'bars'}];
 let cur='dash',openChat=null;
+/* the signed-in user decides what the nav shows and what the dashboard is */
+const me=()=>S.me||S.users[0];
+const myPerms=()=>new Set(userPerms(me()));
+const isRider=()=>me().role==='rider';
+const myRider=()=>S.riders.find(r=>r.id===me().riderId)||null;
+const canSee=p=>myPerms().has(p);
 const PAGES={};
 function buildNav(){
-  $('#nav').innerHTML=NAV.map(n=>n.h?`<div class="nav-h">${n.h}</div>`:`<button data-p="${n.id}" title="${n.t}">${ic(n.ic)}<span>${n.t}</span>${n.soon?'<span class="soon">Soon</span>':`<span class="cnt" data-nb="${n.id}" hidden></span>`}</button>`).join('');
-  $('#bnav').innerHTML=BNAV.map(n=>`<button data-p="${n.id}">${ic(n.ic)}<span>${n.t}</span><span class="cnt" data-nb="${n.id}" hidden></span></button>`).join('');
+  const ok=myPerms();
+  /* keep the pages this user may open, then drop any heading left with nothing under it */
+  const items=NAV.filter(n=>n.h||ok.has(n.id));
+  const nav=items.filter((n,i)=>!n.h||(items[i+1]&&!items[i+1].h));
+  $('#nav').innerHTML=nav.map(n=>n.h?`<div class="nav-h">${n.h}</div>`:`<button data-p="${n.id}" title="${n.t}">${ic(n.ic)}<span>${n.t}</span>${n.soon?'<span class="soon">Soon</span>':`<span class="cnt" data-nb="${n.id}" hidden></span>`}</button>`).join('');
+  const bn=BNAV.filter(n=>n.id==='more'?nav.filter(x=>!x.h).length>4:ok.has(n.id));
+  $('#bnav').innerHTML=bn.map(n=>`<button data-p="${n.id}">${ic(n.ic)}<span>${n.t}</span><span class="cnt" data-nb="${n.id}" hidden></span></button>`).join('');
+  $('#bnav').style.gridTemplateColumns=`repeat(${Math.max(1,bn.length)},1fr)`;
   $$('#nav button,#bnav button').forEach(b=>b.onclick=()=>{if(b.dataset.p==='more')return toggleSide(true);go(b.dataset.p)});
 }
 function go(p,opts={}){
   if(p==='more'){toggleSide(true);return}
   closeDrawer();closeNP();toggleSide(false);
   const page=PAGES[p];if(!page)return;
+  if(!canSee(p)){toast('No access','Ask the owner to switch this on for you in Settings',{icon:'lock',tone:'bad'});return}
   if(p===cur&&!opts.force){page.open&&page.open(opts);return}
   cur=p;
   $$('#nav button,#bnav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p||(b.dataset.p==='more'&&!BNAV.some(x=>x.id===p))));
@@ -607,7 +646,7 @@ function go(p,opts={}){
 }
 let lastBadge={};
 function refreshChrome(){
-  const counts={chats:S.chats.filter(c=>c.state==='human').length,orders:byStatus('new').length,kitchen:byStatus('approved').length+byStatus('preparing').length,riders:byStatus('ready').length};
+  const counts={chats:S.chats.filter(c=>c.state==='human').length,orders:byStatus('new').length+byStatus('approved').length+byStatus('preparing').length,riders:byStatus('ready').length};
   const unreadChats=S.chats.reduce((a,c)=>a+(c.unread||0),0);
   $$('[data-nb]').forEach(el=>{const id=el.dataset.nb;let n=counts[id]||0;if(id==='chats')n=counts.chats||unreadChats;
     el.hidden=!n;el.textContent=n;el.classList.toggle('red',id==='chats'&&counts.chats>0);
@@ -617,7 +656,20 @@ function refreshChrome(){
   const w=$('#waPill');w.className='wa '+(S.set.wa?'on':'off');w.querySelector('.dot').className='dot'+(S.set.wa?'':' red');$('#waTxt').textContent=S.set.wa?'Connected':'Disconnected';
   $('#liveTag').hidden=!S.set.wa;
   $('#voiceBtn').innerHTML=ic(S.set.voice?'sound':'mute');$('#voiceBtn').title=S.set.voice?'Voice alerts on':'Voice alerts off';
+  $('#npPop').classList.toggle('on',S.set.pop);
+  $('#bellBtn').classList.toggle('muted',!S.set.pop);
   if($('#np').classList.contains('on'))renderNP();
+}
+/* Riders get notifications only — never a voice talking over the shop floor. */
+function applyRole(){
+  buildNav();
+  const r=isRider();
+  $('#voiceBtn').hidden=r;
+  if(r)S.set.voice=false;
+  $('#meRole').textContent=(ROLES[me().role]||ROLES.admin).name;
+  const first=canSee(cur)?cur:(NAV.find(n=>!n.h&&canSee(n.id))||{id:'dash'}).id;
+  go(first,{force:true});
+  refreshChrome();
 }
 function toggleSide(on){$('#side').classList.toggle('on',on);$('#scrim').classList.toggle('on',on||$('#drawer').classList.contains('on'))}
 
@@ -636,6 +688,28 @@ const Side={
  apply(){document.documentElement.dataset.side=this.mini?'mini':'full';
    const b=$('#burger');if(b)b.title=innerWidth<=1024?'Menu':(this.mini?'Expand sidebar':'Collapse sidebar')},
  toggle(){this.mini=!this.mini;LS.set('side',this.mini?'mini':'full');this.apply()}
+};
+/* ---------- install as an app ---------- */
+/* The worker plus the manifest is what puts the install icon in Chrome's
+   address bar; this button fires the same prompt, within reach on a phone. */
+const Install={
+ evt:null,
+ init(){
+   if('serviceWorker' in navigator)
+     addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+   addEventListener('beforeinstallprompt',e=>{e.preventDefault();this.evt=e;this.show(true)});
+   addEventListener('appinstalled',()=>{this.evt=null;this.show(false);
+     toast('Installed','Foodies Mania CRM now opens from your home screen',{icon:'check',tone:'ok'})});
+   const b=$('#installBtn');
+   if(b)b.onclick=async()=>{
+     const e=this.evt;if(!e)return;
+     this.evt=null;this.show(false);
+     try{e.prompt();await e.userChoice}catch(err){}
+   };
+ },
+ show(on){const b=$('#installBtn');if(b)b.hidden=!on},
+ can(){return !!this.evt},
+ standalone(){try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}}
 };
 function toggleFull(){
   const d=document.documentElement;
@@ -666,8 +740,8 @@ function orderDrawer(id){
   const steps=[['placed','Order placed by AI agent'],['approved','Approved, sent to kitchen'],['preparing','Kitchen started cooking'],['ready','Ready, waiting for rider'],['out','Out for delivery'+(r?' · '+r.name:'')],['delivered','Delivered']];
   const order=['new','approved','preparing','ready','out','delivered'];const si=order.indexOf(o.status);
   const acts={new:`<button class="btn danger" data-a="cancel">${ic('x')}Cancel</button><button class="btn pri" data-a="approve">${ic('check')}Approve → Kitchen</button>`,
-    approved:`<button class="btn" data-a="kitchen">${ic('chef')}Open kitchen</button><button class="btn pri" data-a="ready">Mark ready</button>`,
-    preparing:`<button class="btn" data-a="kitchen">${ic('chef')}Open kitchen</button><button class="btn pri" data-a="ready">Mark ready</button>`,
+    approved:`<button class="btn" data-a="kitchen">${ic('chef')}Kitchen queue</button><button class="btn pri" data-a="ready">Mark ready</button>`,
+    preparing:`<button class="btn" data-a="kitchen">${ic('chef')}Kitchen queue</button><button class="btn pri" data-a="ready">Mark ready</button>`,
     ready:`<button class="btn pri" data-a="assign">${ic('helmet')}Assign rider</button>`,
     out:`<button class="btn" data-a="rider">${ic('helmet')}Riders</button><button class="btn ok" data-a="delivered">${ic('check')}Mark delivered</button>`}[o.status]||'';
   const chat=S.chats.find(x=>x.orderId===id);
@@ -685,7 +759,7 @@ function orderDrawer(id){
       if(a==='approve'){A.approve(id);orderDrawer(id)}
       else if(a==='cancel')confirmBox(`Cancel ${o.id}?`,`${custName(o)} will get a WhatsApp message that the order is cancelled.`,'Cancel order',()=>{A.cancel(id);orderDrawer(id)},1);
       else if(a==='ready'){A.ready(id);orderDrawer(id)}
-      else if(a==='kitchen')go('kitchen');
+      else if(a==='kitchen')go('orders',{tab:'kitchen'});
       else if(a==='assign')riderPicker(id,()=>orderDrawer(id));
       else if(a==='delivered'){A.delivered(id);orderDrawer(id)}
       else if(a==='paid'){A.markPaid(id);orderDrawer(id)}
@@ -708,6 +782,40 @@ function riderPicker(oid,after){
    ${off.length?`<div class="rp-h">Off duty</div>${off.map(row).join('')}`:''}</div>`,m=>$$('[data-r]',m).forEach(b=>b.onclick=()=>{A.assign(oid,b.dataset.r);closeModal();after&&after()}));
 }
 
+/* ================= A RIDER'S OWN SCREEN =================
+   Everything he needs and nothing he does not: what is on his bike, what he
+   has to collect, and one button to mark a drop done. */
+function riderHome(el,keep){
+  const r=myRider();
+  if(!r){el.innerHTML=`<div class="empty card">${ic('helmet')}This login is not linked to a rider yet. Ask the owner to link it in Settings → Users.</div>`;return}
+  const out=riderOut(r),done=riderDone(r);
+  const html=`
+   <div class="hello"><div><h2>Salam, ${esc(r.name.split(' ')[0])}</h2><p>${out.length?`You have ${out.length} order${out.length===1?'':'s'} on the bike right now.`:'Nothing on the bike. The counter will send you the next one.'}</p></div>
+    <div class="shift">${ic(r.status==='off'?'pause':'bike','sm')}<span>${r.status==='off'?'Off duty':r.status==='busy'?'On delivery':'Free — waiting for an order'}</span></div></div>
+   <div class="grid g3 st" style="margin-top:16px">
+    <button class="card kpi rk" data-br="take:${r.id}"><div class="ico">${ic('cash')}</div><div><div class="lbl">To take</div><div class="val num">${rs(toTake(r))}</div><div class="dl"><span class="dim">Cash to collect at the door</span></div></div></button>
+    <button class="card kpi rk" data-br="hold:${r.id}"><div class="ico">${ic('wallet')}</div><div><div class="lbl">Collected</div><div class="val num">${rs(r.cash)}</div><div class="dl"><span class="dim">To hand in at the counter</span></div></div></button>
+    <button class="card kpi rk" data-br="done:${r.id}"><div class="ico">${ic('check')}</div><div><div class="lbl">Delivered tonight</div><div class="val num">${r.today}</div><div class="dl"><span class="dim">${rs(r.earn)} earned</span></div></div></button>
+   </div>
+   <div class="card" style="margin-top:16px"><div class="card-h"><h3>${ic('bike')}On the bike</h3><span class="dim sp" style="font-size:12.5px">Oldest first</span></div>
+    <div class="rdrops">${out.length?out.sort((a,b)=>a.t.out-b.t.out).map(o=>{const c=S.cmap[o.cid];return `
+      <div class="rdrop" data-k="rd${o.id}">
+       <div class="r1"><span class="mono" style="color:var(--or2)">${o.id}</span>${payTag(o)}<span class="tm">${ic('clock','sm')}<span data-since="${o.t.out}">${ago(o.t.out)}</span></span></div>
+       <div class="who"><b>${esc(c.name)}</b><a class="btn sm" href="tel:${esc(c.phone.replace(/\s/g,''))}">${ic('phone','sm')}Call</a></div>
+       <div class="addr">${ic('pin','sm')}<span>${esc(o.addr)}</span></div>
+       <div class="its dim">${esc(itemsShort(o))}</div>
+       ${o.note?`<div class="nt">${ic('note','sm')}${esc(o.note)}</div>`:''}
+       <div class="r3"><span class="${o.pay==='COD'?'cod':'dim'}">${o.pay==='COD'?'Collect '+rs(o.total):'Already paid · '+rs(o.total)}</span>
+        <button class="btn ok" data-dl="${o.id}">${ic('check')}Delivered</button></div>
+      </div>`}).join(''):`<div class="empty">${ic('check')}Nothing on the bike right now.</div>`}</div></div>
+   <div class="card" style="margin-top:16px"><div class="card-h"><h3>${ic('clock')}Delivered tonight</h3><span class="dim sp" style="font-size:12.5px">${done.length} order${done.length===1?'':'s'}</span></div>
+    <div class="lst">${done.length?done.slice(0,8).map(o=>`<div data-k="rh${o.id}"><span class="food sm">${ic('check','sm')}</span><div class="grow"><b class="ell">${esc(custName(o))}</b><div class="dim" style="font-size:12px">${esc(o.area)} · ${t12(o.t.delivered)}</div></div><b class="num">${rs(o.total)}</b></div>`).join(''):`<div class="empty">${ic('hourglass')}No deliveries yet tonight.</div>`}</div></div>`;
+  if(keep){const sc=el.scrollTop;el.innerHTML=html;el.scrollTop=sc}else el.innerHTML=html;
+  $$('[data-dl]',el).forEach(b=>b.onclick=()=>A.delivered(b.dataset.dl));
+  $$('[data-br]',el).forEach(b=>b.onclick=()=>{const [kind,rid]=b.dataset.br.split(':');riderBreakdown(S.riders.find(x=>x.id===rid),kind)});
+  settle(el);
+}
+
 /* ================= DASHBOARD ================= */
 function spark(vals,color='var(--or)'){const w=96,h=34,mx=Math.max(...vals,1),mn=Math.min(...vals);const pts=vals.map((v,i)=>[i*(w/(vals.length-1)),h-3-((v-mn)/(mx-mn||1))*(h-8)]);const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');const id='sg'+Math.random().toString(36).slice(2,7);
   return `<svg class="spark" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".35"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><path d="${d} L${w} ${h} L0 ${h}Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"/><circle cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="2.8" fill="${color}"/></svg>`}
@@ -724,8 +832,9 @@ function hourChart(){
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Orders per hour tonight versus last week"><defs><linearGradient id="bh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--or2)"/><stop offset="1" stop-color="var(--or)" stop-opacity=".5"/></linearGradient></defs>${g}${bars}<path d="${line}" fill="none" stroke="var(--cream)" stroke-width="2" stroke-dasharray="4 5" stroke-linecap="round" opacity=".8"/>${lp.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="2.5" fill="var(--cream)"/>`).join('')}${xl}</svg>`}
 PAGES.dash={
  render(el){
+  if(isRider())return riderHome(el);
   el.innerHTML=`<div class="hello"><div><h2>Good evening, Shahnawaz</h2><p>Here is how tonight is going. Everything below updates live.</p></div><div class="shift">${ic('moon','sm')}<span>Tonight's shift · 3:00 PM – 5:00 AM</span><span class="bar"><i id="shBar"></i></span><b id="shLeft" class="num"></b></div></div>
-  <div class="grid g4 st" id="kpis"></div>
+  <div class="grid g5 st" id="kpis"></div>
   <div class="card pipe" id="pipe" style="margin-top:16px"></div>
   <div class="grid g21" style="margin-top:16px"><div class="card chart"><div class="card-h"><h3>${ic('chart')}Orders by hour</h3><div class="legend sp"><span><i style="background:var(--or)"></i>Tonight</span><span><i style="background:var(--cream);height:2px;border-radius:0"></i>Same night last week</span></div></div><div id="hc"></div></div>
    <div class="card"><div class="card-h"><h3>${ic('helmet')}Riders right now</h3><button class="link sp" data-go="riders">Manage ${ic('chev','sm')}</button></div><div class="lst" id="dRiders"></div></div></div>
@@ -739,6 +848,7 @@ PAGES.dash={
  },
  refresh(first){
   const el=$('#pg');if(!el)return;
+  if(isRider())return riderHome(el,true);
   const tn=tonight().filter(o=>o.status!=='cancelled');const lastWk=S.orders.filter(o=>o.t.placed>=SHIFT0-7*DAY&&o.t.placed<now()-7*DAY&&o.status!=='cancelled');
   const rev=tn.reduce((a,o)=>a+o.total,0),lrev=lastWk.reduce((a,o)=>a+o.total,0);
   const aov=tn.length?rev/tn.length:0,laov=lastWk.length?lrev/lastWk.length:0;
@@ -746,14 +856,16 @@ PAGES.dash={
   const pct=(a,b)=>b?Math.round((a-b)/b*100):0;
   const nights=[...Array(7)].map((_,i)=>SHIFT0-15*HOUR-(6-i)*DAY);
   const sp1=nights.map(n=>nightStats(n).length),sp2=nights.map(n=>nightStats(n).reduce((a,o)=>a+o.total,0));
-  const K=[['bike','Delivery orders tonight',tn.length,pct(tn.length,lastWk.length),sp1,null],['wallet','Revenue tonight',rev,pct(rev,lrev),sp2,rs],['cash','Average order',aov,pct(aov,laov),sp2.map((v,i)=>v/(sp1[i]||1)),rs],['take','Takeaway number shared',tk,null,null,null]];
+  const road=roadCash();
+  const K=[['bike','Delivery orders tonight',tn.length,pct(tn.length,lastWk.length),sp1,null],['wallet','Revenue tonight',rev,pct(rev,lrev),sp2,rs],['cash','Average order',aov,pct(aov,laov),sp2.map((v,i)=>v/(sp1[i]||1)),rs],['helmet','Cash out on the road',road,null,null,rs],['take','Takeaway number shared',tk,null,null,null]];
   const kp=$('#kpis');
   if(first||!kp.children.length){kp.innerHTML=K.map((x,i)=>`<div class="card kpi kpi2" style="--d:${i}"><div class="kh"><div class="ico">${ic(x[0])}</div><div class="lbl">${x[1]}</div></div><div class="val num" id="kv${i}">0</div><div class="kft"><div class="dl" id="kd${i}"></div>${x[4]?spark(x[4],i===1?'var(--or2)':'var(--or)'):''}</div></div>`).join('')}
-  K.forEach((x,i)=>{countUp($('#kv'+i),x[2],x[5]||undefined);$('#kd'+i).innerHTML=x[3]==null?`<span class="dim">Customers who chose takeaway</span>`:`<span class="${x[3]>=0?'up':'down'}">${x[3]>=0?'▲':'▼'} ${Math.abs(x[3])}%</span><span class="dim">vs last week</span>`});
+  const CAP={3:'With riders, not collected yet',4:'Customers who chose takeaway'};
+  K.forEach((x,i)=>{countUp($('#kv'+i),x[2],x[5]||undefined);$('#kd'+i).innerHTML=x[3]==null?`<span class="dim">${CAP[i]||''}</span>`:`<span class="${x[3]>=0?'up':'down'}">${x[3]>=0?'▲':'▼'} ${Math.abs(x[3])}%</span><span class="dim">vs last week</span>`});
   // shift progress
   const p=Math.min(1,(now()-SHIFT0)/(SHIFT1-SHIFT0));$('#shBar').style.width=(p*100).toFixed(1)+'%';const left=Math.max(0,SHIFT1-now());$('#shLeft').textContent=Math.floor(left/HOUR)+'h '+Math.floor(left%HOUR/MIN)+'m left';
   // pipeline
-  const PL=[['new','Awaiting approval','var(--warn)','orders','Tap to approve'],['kitchen','In kitchen','var(--blue)','kitchen','Queued + cooking'],['ready','Ready for rider','var(--vio)','riders','Assign a rider'],['out','Out for delivery','var(--cyan)','riders','On the road'],['delivered','Delivered tonight','var(--ok)','orders','Completed']];
+  const PL=[['new','Awaiting approval','var(--warn)','orders','Tap to approve'],['kitchen','In kitchen','var(--blue)','orders','Queued + cooking'],['ready','Ready for rider','var(--vio)','riders','Assign a rider'],['out','Out for delivery','var(--cyan)','riders','On the road'],['delivered','Delivered tonight','var(--ok)','orders','Completed']];
   const pc={new:byStatus('new').length,kitchen:byStatus('approved').length+byStatus('preparing').length,ready:byStatus('ready').length,out:byStatus('out').length,delivered:tonight().filter(o=>o.status==='delivered').length};
   const pp=$('#pipe');if(!pp.children.length){pp.innerHTML=PL.map(x=>`<button data-go="${x[3]}" data-st="${x[0]}"><span class="pl"><span class="pd" style="background:${x[2]}"></span>${x[1]}</span><span class="pv num" id="pv-${x[0]}">0</span><span class="ps">${x[4]}</span></button>`).join('');$$('button',pp).forEach(b=>b.onclick=()=>go(b.dataset.go,{tab:b.dataset.st}))}
   PL.forEach(x=>countUp($('#pv-'+x[0]),pc[x[0]]));
@@ -916,54 +1028,6 @@ PAGES.orders={
  }
 };
 
-/* ================= KITCHEN ================= */
-const struck=new Set();
-let kitchenOpen=false;
-PAGES.kitchen={
- render(el){
-  if(!kitchenOpen)return this.gate(el);
-  el.innerHTML=`<div class="kd" id="kd"><div class="kd-top"><div class="kstat">${ic('chef','lg')}<div><b class="num" id="kq">0</b><br><span>to cook</span></div></div><div class="kstat"><div><b class="num" id="kc" style="color:var(--or2)">0</b><br><span>cooking now</span></div></div><div class="kstat"><div><b class="num" id="kr" style="color:var(--vio)">0</b><br><span>waiting at pass</span></div></div><div class="kstat"><div><b class="num" id="ka" style="color:var(--ok)">—</b><br><span>avg cook time tonight</span></div></div>
-   <div style="margin-left:auto;display:flex;gap:8px;align-items:center"><span class="dim hide-m" style="font-size:12.5px" id="kw"></span><button class="btn sm ghost" id="kLock">${ic('lock','sm')}Lock</button></div></div>
-   <div class="kd-grid"><div class="tickets" id="tix"></div><div class="card"><div class="card-h"><h3>${ic('helmet')}At the pass</h3><span class="dim sp" style="font-size:12px">Ready, waiting for rider</span></div><div class="pass" id="pass"></div></div></div></div>`;
-  $('#kLock').onclick=()=>{kitchenOpen=false;this.render($('#pg'))};
-  $('#tix').onclick=e=>{const t=e.target.closest('[data-tk]');if(!t)return;const id=t.dataset.tk;const it=e.target.closest('[data-it]');const b=e.target.closest('[data-kx]');
-    if(it){const key=id+':'+it.dataset.it;struck.has(key)?struck.delete(key):struck.add(key);it.classList.toggle('done');return}
-    if(!b)return;if(b.dataset.kx==='start'){A.start(id)}else{t.classList.add('leaving');setTimeout(()=>A.ready(id),420)}};
-  this.refresh();
- },
- /* the screen the kitchen staff see first: one bar, nothing else to read */
- gate(el){
-  el.innerHTML=`<div class="kgate"><form id="kgForm" autocomplete="off">
-   <img class="klogo" src="assets/logo.webp" alt="">
-   <div class="kbar"><input id="kgPw" type="password" placeholder="Kitchen Manager" aria-label="Kitchen Manager" autocomplete="off">
-    <button class="kgo" type="submit" aria-label="Enter">${ic('chev')}</button></div>
-  </form></div>`;
-  $('#kgForm').onsubmit=e=>{e.preventDefault();
-   const v=$('#kgPw').value;
-   if(S.set.kitchenPass&&v!==S.set.kitchenPass){const b=$('.kgate .kbar');b.classList.remove('flash');void b.offsetWidth;b.classList.add('flash');$('#kgPw').value='';return}
-   kitchenOpen=true;this.render($('#pg'))};
-  setTimeout(()=>{const i=$('#kgPw');i&&i.focus()},120);
- },
- refresh(){
-  if(!$('#tix'))return;
-  const q=S.orders.filter(o=>o.status==='approved'||o.status==='preparing').sort((a,b)=>a.t.approved-b.t.approved);
-  $('#kq').textContent=q.filter(o=>o.status==='approved').length;$('#kc').textContent=q.filter(o=>o.status==='preparing').length;
-  const ready=byStatus('ready');$('#kr').textContent=ready.length;
-  const done=tonight().filter(o=>o.t.ready&&o.t.preparing);$('#ka').textContent=done.length?Math.round(done.reduce((a,o)=>a+(o.t.ready-o.t.preparing),0)/done.length/MIN)+' min':'—';
-  const w=byStatus('new').length;$('#kw').textContent=w?`${w} order${w>1?'s':''} waiting for owner approval`:'';
-  const box=$('#tix');
-  box.innerHTML=q.length?q.map(o=>{const c=S.cmap[o.cid];return `<div class="tk" data-k="tk${o.id}" data-tk="${o.id}">
-    <div class="tk-h"><span class="id">${o.id}</span><span style="font-size:12px;opacity:.85;display:inline-flex;gap:4px;align-items:center;${o.status==='preparing'?'color:#ffb070':''}">${o.status==='preparing'?ic('flame','sm')+'Cooking':'New'}</span><span class="tmr ${tmrCls(o.t.approved)}" data-since="${o.t.approved}" data-fmt="mmss">${mmss(o.t.approved)}</span></div>
-    <div class="tk-m"><span>${esc(c.name.split(' ')[0])} · ${esc(o.area)}</span><span>In ${t12(o.t.approved)}</span></div>
-    ${o.note?`<div class="tk-note">${ic('alert','sm')}${esc(o.note)}</div>`:''}
-    <div class="tk-items">${o.items.map((it,i)=>`<button data-it="${i}" class="${struck.has(o.id+':'+i)?'done':''}"><span class="q">${it.qty}×</span><span><span class="n">${esc(MM[it.mid].name)}</span>${it.note?`<br><span class="inote">${esc(it.note)}</span>`:''}</span></button>`).join('')}</div>
-    <div class="tk-f">${o.status==='approved'?`<button class="btn b-start" data-kx="start">${ic('flame')}Start cooking</button>`:''}<button class="btn b-ready" data-kx="ready">${ic('check')}Ready</button></div></div>`}).join(''):`<div class="card empty" style="grid-column:1/-1;padding:60px 20px">${ic('chef')}<b style="color:var(--fg);font-size:16px">Kitchen is clear</b>Approved orders appear here as tickets, oldest first.</div>`;
-  $('#pass').innerHTML=ready.length?ready.map(o=>`<div class="oc" data-k="ps${o.id}"><div class="r1"><span class="id">${o.id}</span><span class="tm">${ic('clock','sm')}<span data-since="${o.t.ready}">${ago(o.t.ready)}</span></span></div><div class="nm">${esc(custName(o))} · <span class="dim">${esc(o.area)}</span></div><button class="btn sm pri" data-as="${o.id}">${ic('helmet','sm')}Assign rider</button></div>`).join(''):`<div class="empty">${ic('helmet')}Nothing at the pass.</div>`;
-  $$('[data-as]').forEach(b=>b.onclick=()=>riderPicker(b.dataset.as));
-  settle($('#kd'));
- }
-};
-
 /* ================= RIDERS ================= */
 /* "Receive" asks how much cash Foodies Mania actually counted, so a rider
    can hand in part of what he is carrying and the rest stays owed. */
@@ -980,6 +1044,35 @@ function receiveCash(r){
    $$('[data-amt]',m).forEach(b=>b.onclick=()=>{inp.value=b.dataset.amt;sync()});
    $('#rcOk',m).onclick=()=>{const v=Math.round(+inp.value||0);if(v<=0){toast('Enter an amount','Type how much cash you counted',{icon:'alert',tone:'bad'});return}closeModal();A.settle(r.id,v)};
    setTimeout(()=>{inp.focus();inp.select()},120);
+  });
+}
+/* Tap any of a rider's three numbers to see exactly which orders make it up. */
+function riderBreakdown(r,kind){
+  if(!r)return;
+  const V={
+   take:{t:'To take',sub:'Cash-on-delivery orders '+r.name.split(' ')[0]+' is out with. He collects this at the door.',
+         rows:riderOut(r).filter(o=>o.pay==='COD'),tot:toTake(r),icon:'bike',
+         empty:'Nothing on the road right now.'},
+   hold:{t:'Collected',sub:'Cash '+r.name.split(' ')[0]+' has taken from customers since his last hand-in.',
+         rows:riderHolding(r),tot:r.cash,icon:'cash',
+         empty:'Nothing collected since the last hand-in.'},
+   done:{t:'Delivered tonight',sub:'Every order '+r.name.split(' ')[0]+' finished this shift.',
+         rows:riderDone(r),tot:null,icon:'check',
+         empty:'No deliveries yet tonight.'}
+  }[kind];
+  if(!V)return;
+  const prepaid=kind==='take'?riderOut(r).filter(o=>o.pay!=='COD'):[];
+  const line=o=>`<button class="brrow" data-o="${o.id}"><span class="mono" style="color:var(--or2)">${o.id}</span>
+    <div class="grow"><b class="ell">${esc(custName(o))}</b><div class="dim" style="font-size:12px">${esc(o.area)} · ${o.t.delivered?'delivered '+t12(o.t.delivered):'out '+ago(o.t.out||o.t.placed)}</div></div>
+    <div style="text-align:right"><b class="num">${rs(o.total)}</b><div style="font-size:11.5px" class="${o.pay==='COD'?'up':'dim'}">${o.pay==='COD'?'cash':payName[o.pay]}</div></div></button>`;
+  modal(`<div class="md-h"><div class="grow"><div class="row" style="gap:10px"><div class="av sm ${avc(r.name)}">${ini(r.name)}</div><h3>${V.t}</h3></div><p>${esc(V.sub)}</p></div><button class="iconbtn" data-close>${ic('x')}</button></div>
+   <div class="md-b">${V.rows.length?`<div class="brlist">${V.rows.map(line).join('')}</div>`:`<div class="empty">${ic(V.icon)}${V.empty}</div>`}
+    ${V.tot!=null?`<div class="kv tot" style="margin-top:14px"><span style="color:var(--fg)">${V.rows.length} order${V.rows.length===1?'':'s'}</span><span class="num">${rs(V.tot)}</span></div>`:''}
+    ${prepaid.length?`<div class="dim" style="font-size:12.5px;margin-top:12px">${ic('wallet','sm')} Also carrying ${prepaid.length} already-paid order${prepaid.length===1?'':'s'} — no cash to collect on ${prepaid.length===1?'that one':'those'}.</div>`:''}
+   </div>
+   <div class="md-f"><button class="btn ghost" data-close>Close</button>${kind==='hold'&&r.cash?`<button class="btn pri" id="brRec">${ic('cash')}Receive cash</button>`:''}</div>`,m=>{
+    $$('[data-o]',m).forEach(b=>b.onclick=()=>{closeModal();orderDrawer(b.dataset.o)});
+    const rec=$('#brRec',m);if(rec)rec.onclick=()=>{closeModal();receiveCash(r)};
   });
 }
 PAGES.riders={
@@ -1001,7 +1094,7 @@ PAGES.riders={
   const L=[...S.riders].sort((a,b)=>({free:0,busy:1,off:2}[a.status]-{free:0,busy:1,off:2}[b.status])||b.today-a.today);
   $('#rl').innerHTML=L.map(r=>`<div class="card rc ${r.status==='off'?'off':''}" data-k="rc${r.id}${r.status}">
    <div class="r1"><div class="av lg ${avc(r.name)}">${ini(r.name)}</div><div class="grow"><b style="font-size:15.5px">${esc(r.name)}</b><div class="dim" style="font-size:12.5px">${r.phone} · ${r.bike}</div></div><span class="tag ${r.status==='free'?'t-delivered':r.status==='busy'?'t-out':''}">${r.status==='free'?'<span class="dot"></span>Free':r.status==='busy'?'On delivery':'Off duty'}</span></div>
-   <div class="stat"><div><small>Delivered</small><b class="num">${r.today}</b></div><div><small>Collected</small><b class="num">${rs(r.collected||0)}</b></div><div class="hand ${r.cash?'':'clear'}"><small>To hand in</small><b class="num">${rs(r.cash)}</b></div></div>
+   <div class="stat"><button data-br="done:${r.id}"><small>Delivered</small><b class="num">${r.today}</b></button><button data-br="take:${r.id}" class="take ${toTake(r)?'live':''}"><small>To take</small><b class="num">${rs(toTake(r))}</b></button><button data-br="hold:${r.id}" class="hand ${r.cash?'':'clear'}"><small>Collected</small><b class="num">${rs(r.cash)}</b></button></div>
    ${r.orders.length?`<div class="cur">${r.orders.map(id=>{const o=S.omap[id];return `<div>${ic('bike','sm')}<span class="mono" style="color:var(--cyan)">${id}</span><span class="grow ell">${esc(o.area)} · ${rs(o.total)}</span><span class="dim" data-since="${o.t.out}">${ago(o.t.out)}</span><button class="btn sm ok" data-dl="${id}">Delivered</button></div>`}).join('')}</div>`:''}
    <div class="acts">${r.status!=='off'&&ready.length?`<button class="btn sm pri" data-pick="${r.id}">${ic('plus','sm')}Give order</button>`:''}${r.cash?`<button class="btn sm" data-st="${r.id}">${ic('cash','sm')}Receive</button>`:''}<button class="btn sm ghost" data-du="${r.id}">${r.status==='off'?'Start shift':'End shift'}</button></div></div>`).join('');
   const pg=$('#pg');
@@ -1009,6 +1102,7 @@ PAGES.riders={
   $$('[data-dl]',pg).forEach(b=>b.onclick=()=>A.delivered(b.dataset.dl));
   $$('[data-du]',pg).forEach(b=>b.onclick=()=>A.duty(b.dataset.du));
   $$('[data-st]',pg).forEach(b=>b.onclick=()=>{const r=S.riders.find(x=>x.id===b.dataset.st);receiveCash(r)});
+  $$('[data-br]',pg).forEach(b=>b.onclick=()=>{const [kind,rid]=b.dataset.br.split(':');riderBreakdown(S.riders.find(x=>x.id===rid),kind)});
   $$('[data-pick]',pg).forEach(b=>b.onclick=()=>{const r=S.riders.find(x=>x.id===b.dataset.pick);modal(`<div class="md-h"><div class="grow"><h3>Give ${esc(r.name.split(' ')[0])} an order</h3><p>Orders the kitchen has marked ready.</p></div><button class="iconbtn" data-close>${ic('x')}</button></div><div class="md-b">${byStatus('ready').map(o=>`<button class="rp" data-o="${o.id}"><span class="mono" style="color:var(--or2)">${o.id}</span><div class="grow"><b>${esc(custName(o))}</b><div class="dim" style="font-size:12px">${esc(o.area)} · ${rs(o.total)}</div></div>${ic('chev')}</button>`).join('')}</div>`,m=>$$('[data-o]',m).forEach(x=>x.onclick=()=>{A.assign(x.dataset.o,r.id);closeModal()}))});
   settle(pg);
  }
@@ -1193,10 +1287,8 @@ let mCat='all',mQ='';
 PAGES.menu={
  render(el){
   el.innerHTML=`<div class="toolbar"><div class="inp" style="height:40px;width:280px;max-width:100%">${ic('search')}<input id="mQ" placeholder="Search menu" aria-label="Search menu" value="${esc(mQ)}"></div><span class="dim" style="font-size:12.5px" id="mInfo"></span><button class="btn pri" id="mAdd" style="margin-left:auto">${ic('plus')}Add item</button></div>
-   <div class="segs" id="mCats" style="margin-bottom:16px"></div>
-   <div class="card" style="margin-bottom:16px"><div class="card-h"><h3>${ic('cloche')}Category availability</h3><span class="dim sp" style="font-size:12.5px" id="mCatInfo"></span></div>
-    <p class="muted" style="margin:0 0 14px;font-size:12.5px">Switch a whole category off and the live AI agent stops offering every item in it — useful when the BBQ man has gone home or the oven is down.</p>
-    <div class="catbar" id="catAv"></div></div>
+   <div class="segs" id="mCats"></div>
+   <div id="catAv"></div>
    <div class="mg" id="mGrid"></div>`;
   $('#mQ').oninput=e=>{mQ=e.target.value.toLowerCase();this.refresh()};
   $('#mAdd').onclick=()=>modal(`<div class="md-h"><div class="grow"><h3>Add menu item</h3><p>The AI agent can offer it as soon as you save.</p></div><button class="iconbtn" data-close>${ic('x')}</button></div><div class="md-b"><label class="field"><span>Item name</span><input class="tx" id="niN" placeholder="e.g. Tower Burger"></label><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><label class="field"><span>Category</span><select class="tx" id="niC">${CATS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}</select></label><label class="field"><span>Price (Rs)</span><input class="tx" id="niP" type="number" min="0" placeholder="450"></label></div></div><div class="md-f"><button class="btn ghost" data-close>Cancel</button><button class="btn pri" id="niOk">Save item</button></div>`,m=>$('#niOk',m).onclick=()=>{const n=$('#niN',m).value.trim();const p=+$('#niP',m).value;if(!n||!p){toast('Add a name and price','Both are needed so the AI can quote it',{icon:'alert',tone:'bad'});return}const it={id:'m'+MENU.length,cat:$('#niC',m).value,name:n,price:p,say:n.toLowerCase(),pop:2,avail:true};MENU.push(it);MM[it.id]=it;closeModal();toast('Item added',`${n} · ${rs(p)}`,{icon:'check',tone:'ok'});this.refresh()});
@@ -1208,15 +1300,17 @@ PAGES.menu={
  refresh(){
   if(!$('#mGrid'))return;if(document.activeElement&&document.activeElement.dataset.pr)return;
   const sold={};tonight().forEach(o=>o.items.forEach(it=>sold[it.mid]=(sold[it.mid]||0)+it.qty));
-  $('#mCats').innerHTML=[{id:'all',name:'All'},...CATS].map(c=>`<button class="chip ${mCat===c.id?'on':''}" data-c="${c.id}">${c.name} <b>${c.id==='all'?MENU.length:MENU.filter(m=>m.cat===c.id).length}</b></button>`).join('');
+  $('#mCats').innerHTML=[{id:'all',name:'All'},...CATS].map(c=>`<button class="chip ${mCat===c.id?'on':''} ${c.id!=='all'&&!c.avail?'coff':''}" data-c="${c.id}">${c.name} <b>${c.id==='all'?MENU.length:MENU.filter(m=>m.cat===c.id).length}</b></button>`).join('');
   $$('#mCats button').forEach(b=>b.onclick=()=>{mCat=b.dataset.c;this.refresh()});
   const offAll=MENU.filter(m=>!isOn(m)).length;
   $('#mInfo').textContent=`${MENU.length} items · ${offAll} not being offered`;
-  /* whole-category switches */
-  const catsOff=CATS.filter(c=>!c.avail).length;
-  $('#mCatInfo').textContent=catsOff?`${catsOff} of ${CATS.length} categories off`:`All ${CATS.length} categories on`;
-  $('#catAv').innerHTML=CATS.map(c=>{const items=MENU.filter(m=>m.cat===c.id);const on=items.filter(m=>m.avail).length;
-   return `<div class="${c.avail?'':'off'}" data-k="cav${c.id}${c.avail}"><span class="food sm">${fi(c.ic)}</span><div class="t"><b>${esc(c.name)}</b><small>${c.avail?`${on} of ${items.length} items on`:`${items.length} items hidden from the AI`}</small></div><button class="sw ${c.avail?'on':''}" data-tc="${c.id}" role="switch" aria-checked="${c.avail}" aria-label="${esc(c.name)} available"></button></div>`}).join('');
+  /* the whole-category switch lives on the category you picked, not in a separate list */
+  const c=CM[mCat];
+  $('#catAv').innerHTML=c?`<div class="catone ${c.avail?'':'off'}" data-k="cav${c.id}${c.avail}">
+     <span class="food sm">${fi(c.ic)}</span>
+     <div class="t"><b>${esc(c.name)} ${c.avail?'are being offered':'are switched off'}</b>
+      <small>${c.avail?`The AI agent can offer all ${MENU.filter(m=>m.cat===c.id&&m.avail).length} items that are on`:`All ${MENU.filter(m=>m.cat===c.id).length} items are hidden from the AI agent tonight`}</small></div>
+     <button class="sw ${c.avail?'on':''}" data-tc="${c.id}" role="switch" aria-checked="${c.avail}" aria-label="${esc(c.name)} available"></button></div>`:'';
   const L=MENU.filter(m=>(mCat==='all'||m.cat===mCat)&&(!mQ||m.name.toLowerCase().includes(mQ)));
   $('#mGrid').innerHTML=L.map(m=>{const cOn=catOn(m.cat);
    return `<div class="card mi ${m.avail?'':'off'} ${cOn?'':'catoff'}" data-k="mi${m.id}"><div class="r1">${foodIc(m.id)}<div class="grow" style="min-width:0"><b class="ell" style="display:block">${esc(m.name)}</b><span class="dim" style="font-size:12px">${CM[m.cat].name} · ${sold[m.id]||0} sold tonight</span></div></div>
@@ -1237,17 +1331,16 @@ function evexaModal(){
      <div class="row">${ic('shield','sm')}<span class="grow">Connection managed by</span><b>Evexa AI</b></div>
    </div>
    <p class="muted" style="font-size:12.5px;margin:14px 0 0">To change the number, re-link the device or pause the agent, message your Evexa AI contact. Nothing in this CRM can disconnect it.</p></div>
-   <div class="md-f"><button class="btn ghost" data-close>Close</button><a class="evexa" href="https://evexa.ai" target="_blank" rel="noopener"><span class="xm">${ic('evexa')}</span>Open evexa.ai</a></div>`);
+   <div class="md-f"><button class="btn ghost" data-close>Close</button><a class="evexa" href="https://evexaai.com" target="_blank" rel="noopener"><span class="xm">${ic('evexa')}</span>Open evexaai.com</a></div>`);
 }
 
 /* staff roles and what each side of the CRM a user can be given */
-const PERMS=[['dash','Dashboard','dash'],['chats','Live Conversations','chat'],['orders','Delivery Orders','bike'],
- ['kitchen','Kitchen','chef'],['riders','Riders','helmet'],['bulk','Bulk Message','send'],['menu','Menu Management','cloche'],
+const PERMS=[['dash','Dashboard','dash'],['chats','Live Conversations','chat'],['orders','Delivery Orders','bike'],['riders','Riders','helmet'],['bulk','Bulk Message','send'],['menu','Menu Management','cloche'],
  ['customers','Customers','users'],['reports','Payments & Reports','chart'],['promos','Promotions & Offers','tag'],['settings','Settings','gear']];
 const ROLES={
  admin:{name:'Admin',ic:'crown',note:'The whole CRM, settings included',perms:PERMS.map(p=>p[0])},
- kitchen:{name:'Kitchen',ic:'chef',note:'Kitchen screen, orders and the menu',perms:['kitchen','orders','menu']},
- rider:{name:'Rider',ic:'helmet',note:'Deliveries and the rider board',perms:['riders','orders']}
+ kitchen:{name:'Kitchen',ic:'chef',note:'The order board and the menu',perms:['orders','menu']},
+ rider:{name:'Rider',ic:'helmet',note:'Only his own deliveries',perms:['dash']}
 };
 const permName=id=>(PERMS.find(p=>p[0]===id)||[,'—'])[1];
 /* a user with no explicit tick list simply gets whatever the role gives */
@@ -1257,6 +1350,7 @@ const userPerms=u=>u.perms&&u.perms.length?u.perms:(ROLES[u.role]||ROLES.admin).
    mode: null = add, 'pass' = password only, 'access' = role + sections */
 function userForm(u,after,mode){
   let role=u?(u.role||'admin'):'kitchen';
+  let riderId=u?(u.riderId||''):'';
   let picked=u?userPerms(u).slice():ROLES[role].perms.slice();
   const permsHTML=()=>PERMS.map(([id,label,icn])=>`<label class="${picked.includes(id)?'on':''}" data-pm="${id}"><input type="checkbox" ${picked.includes(id)?'checked':''}>${ic(icn,'sm')}<span class="ell">${label}</span></label>`).join('');
   const rolesHTML=()=>Object.entries(ROLES).map(([id,r])=>`<button class="${role===id?'on':''}" data-rl="${id}">${ic(r.ic,'lg')}<b>${r.name}</b><small>${esc(r.note)}</small></button>`).join('');
@@ -1268,12 +1362,17 @@ function userForm(u,after,mode){
       <label class="field" style="margin-top:12px"><span>Login ID</span><input class="tx" id="uL" placeholder="kashif"></label>`}
     ${mode==='access'?'':`<label class="field" style="margin-top:12px"><span>${mode==='pass'?'New password':'Password'}</span><input class="tx" id="uP" placeholder="At least 6 characters"></label>`}
     ${mode==='pass'?'':`<div class="field" style="margin-top:16px"><span>Who is this user?</span><div class="roleseg" id="uRole">${rolesHTML()}</div></div>
+      <div class="field" id="uRiderWrap" style="margin-top:16px;${role==='rider'?'':'display:none'}"><span>Which rider on the board is this?</span>
+       <select class="tx" id="uRider">${S.riders.map(r=>`<option value="${r.id}" ${riderId===r.id?'selected':''}>${esc(r.name)} · ${esc(r.bike)}</option>`).join('')}</select>
+       <small class="dim" style="font-size:11.5px">He signs in and sees only this rider's drops and cash.</small></div>
       <div class="field" style="margin-top:16px"><span>Sections they can open <b class="dim" id="uPn"></b></span><div class="perms" id="uPerms">${permsHTML()}</div></div>`}
    </div>
    <div class="md-f"><button class="btn ghost" data-close>Cancel</button><button class="btn pri" id="uOk">${mode==='pass'?'Reset password':mode==='access'?'Save access':'Add user'}</button></div>`,m=>{
    const count=()=>{const n=$('#uPn',m);if(n)n.textContent=`· ${picked.length} of ${PERMS.length}`};
    const paint=()=>{const box=$('#uPerms',m);if(box){box.innerHTML=permsHTML();wirePerms()}
-     const rb=$('#uRole',m);if(rb)$$('button',rb).forEach(b=>b.classList.toggle('on',b.dataset.rl===role));count()};
+     const rb=$('#uRole',m);if(rb)$$('button',rb).forEach(b=>b.classList.toggle('on',b.dataset.rl===role));
+     const rw=$('#uRiderWrap',m);if(rw)rw.style.display=role==='rider'?'':'none';
+     count()};
    const wirePerms=()=>$$('[data-pm]',m).forEach(l=>l.onclick=e=>{e.preventDefault();const id=l.dataset.pm;
      picked=picked.includes(id)?picked.filter(x=>x!==id):[...picked,id];
      l.classList.toggle('on',picked.includes(id));const cb=l.querySelector('input');if(cb)cb.checked=picked.includes(id);count()});
@@ -1285,6 +1384,7 @@ function userForm(u,after,mode){
      else if(mode==='access'){
        if(!picked.length){toast('Tick at least one section','Otherwise they can sign in and see nothing',{icon:'alert',tone:'bad'});return}
        u.role=role;u.perms=picked.slice();
+       u.riderId=role==='rider'?(($('#uRider',m)||{}).value||riderId||'r0'):'';
        toast('Access saved',`${u.name} · ${ROLES[role].name} · ${picked.length} of ${PERMS.length} sections`,{icon:'shield',tone:'ok'})}
      else{
        const n=$('#uN',m).value.trim();
@@ -1292,7 +1392,8 @@ function userForm(u,after,mode){
        if(!picked.length){toast('Tick at least one section','Otherwise they can sign in and see nothing',{icon:'alert',tone:'bad'});return}
        const login=($('#uL',m).value.trim()||n.split(' ')[0]).toLowerCase();
        if(S.users.some(x=>x.login===login)){toast('That login ID is taken','Pick a different one',{icon:'alert',tone:'bad'});return}
-       S.users.push({id:'u'+Date.now(),name:n,login,pass:pw||'changeme',on:true,role,perms:picked.slice()});
+       S.users.push({id:'u'+Date.now(),name:n,login,pass:pw||'changeme',on:true,role,perms:picked.slice(),
+         riderId:role==='rider'?(($('#uRider',m)||{}).value||'r0'):''});
        toast('User added',`${n} · ${ROLES[role].name} · ${picked.length} of ${PERMS.length} sections`,{icon:'user',tone:'ok'})}
      closeModal();after&&after()};
    setTimeout(()=>{const f=$('#uN',m)||$('#uP',m);f&&f.focus()},120);
@@ -1312,18 +1413,20 @@ PAGES.settings={
   const B=$('#setB');if(!B)return;const s=S.set;
   if(setSec==='wa'){
    this._wa=s.wa;
-   /* read-only: the connection itself is managed by Evexa AI */
-   B.innerHTML=`<div class="card enter"><div class="card-h"><h3>${ic('wa')}Delivery WhatsApp</h3><span class="tag sp">${ic('lock')}Locked</span></div>
-    <div class="lockcard">
-     <div class="lockbox">${ic('lock')}<small>Managed</small></div>
-     <div class="grow" style="min-width:230px;display:grid;gap:9px" id="waStat">
-      <div class="row"><span class="dot ${s.wa?'':'red'}"></span><b style="font-size:17px;color:${s.wa?'var(--ok)':'var(--bad)'}">${s.wa?'Connected':'Disconnected'}</b></div>
-      <div class="muted">${s.wa?`The AI agent is answering customers on <b class="mono">${esc(s.waNo)}</b>. Every new chat starts with &ldquo;Delivery or Takeaway?&rdquo;.`:'Customers can still message you, but the AI agent cannot reply and no new orders are coming in.'}</div>
-      <div class="dim" style="font-size:12.5px">${ic('shield','sm')} Linking, re-scanning and number changes are handled by Evexa AI. Nothing here can break the connection by accident.</div>
-      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="evexa" id="waEvexa"><span class="xm">${ic('evexa')}</span>Contact Evexa AI</button></div>
-     </div></div></div>
-    <div class="card"><div class="srow"><div class="t"><b>Status everywhere</b><small>The pill in the top bar always shows this connection. Tap it from any page to come here.</small></div><button class="wa ${s.wa?'on':'off'}" style="pointer-events:none"><span class="dot ${s.wa?'':'red'}"></span><span><b>${s.wa?'Connected':'Disconnected'}</b><small>Delivery WhatsApp</small></span></button></div>
-     <div class="srow"><div class="t"><b>Connected number</b><small>The number customers message to order</small></div><b class="mono">${esc(s.waNo)}</b></div></div>`;
+   /* status, the number, and who to call. Nothing here can change the connection. */
+   B.innerHTML=`<div class="card enter"><div class="card-h"><h3>${ic('wa')}Delivery WhatsApp</h3><span class="tag sp">${ic('lock')}Managed by Evexa AI</span></div>
+    <div class="walite">
+     <div class="warow"><span class="dot ${s.wa?'':'red'}"></span>
+      <div class="grow"><b style="font-size:17px;color:${s.wa?'var(--ok)':'var(--bad)'}">${s.wa?'Connected':'Disconnected'}</b>
+       <div class="dim" style="font-size:12.5px">${s.wa?'The AI agent is answering customers':'The AI agent cannot reply right now'}</div></div></div>
+     <div class="warow"><span class="food sm">${ic('phone','sm')}</span>
+      <div class="grow"><b class="mono" style="font-size:16px">${esc(s.waNo)}</b>
+       <div class="dim" style="font-size:12.5px">The number customers message to order</div></div></div>
+    </div>
+    <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:16px">
+     <button class="evexa" id="waEvexa"><span class="xm">${ic('evexa')}</span>Contact Evexa AI</button>
+     <a class="btn" href="https://evexaai.com" target="_blank" rel="noopener">${ic('link')}evexaai.com</a>
+    </div></div>`;
    $('#waEvexa').onclick=()=>evexaModal();
   }
   if(setSec==='take'){
@@ -1441,7 +1544,7 @@ function embers(){
   const f=()=>{if(!$('#embers')||$('#login').classList.contains('out'))return;x.clearRect(0,0,W,H);P.forEach(p=>{if(!reduce){p.y-=p.v;p.s+=.012;p.x+=Math.sin(p.s)*.25}if(p.y<-10){p.y=H+10;p.x=Math.random()*W}const g=x.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*4);g.addColorStop(0,`rgba(255,160,80,${p.a})`);g.addColorStop(1,'rgba(244,123,32,0)');x.fillStyle=g;x.beginPath();x.arc(p.x,p.y,p.r*4,0,7);x.fill()});requestAnimationFrame(f)};f();
 }
 function boot(){
-  buildNav();embers();Theme.apply();Side.apply();
+  buildNav();embers();Theme.apply();Side.apply();Install.init();
   $('#themeBtn').onclick=()=>Theme.toggle();
   /* the whole dashboard goes full screen on a double-click of the brand mark */
   $('#brandBtn').ondblclick=()=>toggleFull();
@@ -1450,16 +1553,25 @@ function boot(){
   $('#lgRem').onclick=e=>e.currentTarget.classList.toggle('on');
   let started=false;
   $('#lgForm').onsubmit=e=>{e.preventDefault();Voice.unlock();const b=$('#lgBtn');b.classList.add('busy');b.innerHTML='Signing in…';
-    const id=$('#lgId').value.trim().toLowerCase();const u=S.users.find(x=>x.login===id);const name=u?u.name:'Shahnawaz Damani';
+    /* whoever signs in decides what the nav shows and where they land */
+    const id=$('#lgId').value.trim().toLowerCase();
+    S.me=S.users.find(x=>x.login===id&&x.on)||S.users[0];
+    const name=S.me.name;
     $('#meName').textContent=name.split(' ')[0];$('#meAv').textContent=ini(name);
-    setTimeout(()=>{$('#login').classList.add('out');$('#app').classList.add('on');go('dash',{force:true});setTimeout(()=>Voice.say('hello',true),500);if(!started){started=true;simStart()}},900)};
-  $('#logout').onclick=()=>{kitchenOpen=false;$('#login').classList.remove('out');$('#app').classList.remove('on');const b=$('#lgBtn');b.classList.remove('busy');b.innerHTML='Sign in '+ic('chev');embers()};
+    setTimeout(()=>{$('#login').classList.add('out');$('#app').classList.add('on');
+      applyRole();
+      if(!isRider())setTimeout(()=>Voice.say('hello',true),500);
+      if(!started){started=true;simStart()}},900)};
+  $('#logout').onclick=()=>{$('#login').classList.remove('out');$('#app').classList.remove('on');const b=$('#lgBtn');b.classList.remove('busy');b.innerHTML='Sign in '+ic('chev');embers()};
   /* one button: opens the drawer on a phone, collapses the rail on a desktop */
   $('#burger').onclick=()=>{if(innerWidth<=1024)toggleSide(true);else Side.toggle()};
   addEventListener('resize',()=>Side.apply());
   $('#scrim').onclick=()=>{toggleSide(false);closeDrawer()};
   $('#bellBtn').onclick=e=>{e.stopPropagation();const np=$('#np');np.classList.toggle('on');if(np.classList.contains('on'))renderNP()};
   $('#npRead').onclick=()=>{S.notifs.forEach(n=>n.read=true);renderNP();refreshChrome()};
+  $('#npPop').onclick=()=>{S.set.pop=!S.set.pop;refreshChrome();
+    if(!S.set.pop){clearToasts();toast('Pop-ups off','Alerts stay in this panel and on the bell',{icon:'bell',ms:2600})}
+    else toast('Pop-ups on','Alerts appear on screen again',{icon:'bell',tone:'ok',ms:2600})};
   document.addEventListener('click',e=>{if(!e.target.closest('#np')&&!e.target.closest('#bellBtn'))closeNP();if(!e.target.closest('#srch')&&!e.target.closest('#sBtn')){$('#srchRes').hidden=true;$('#srch').classList.remove('m')}});
   $('#voiceBtn').onclick=()=>{S.set.voice=!S.set.voice;Voice.unlock();refreshChrome();toast(S.set.voice?'Voice alerts on':'Voice alerts muted',S.set.voice?'You will hear new chats, orders and kitchen alerts':'Chimes and voice are off',{icon:S.set.voice?'sound':'mute'});if(S.set.voice)Voice.say('hello',true)};
   $('#waPill').onclick=()=>go('settings',{sec:'wa',force:true});
