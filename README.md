@@ -45,19 +45,27 @@ server.mjs        zero-dependency static server with live reload
   phone, three on a desktop. The switch inside the bell panel turns pop-ups off
   altogether: alerts still land in the panel and still count on the bell, they
   just stop appearing over your work. The bell shows a slash while that is off.
-- **Install it as an app** — with the manifest and the service worker in place,
-  Chrome shows its own install icon in the address bar. The **Install** button in
-  the top bar fires the same prompt, and only appears when the browser offers it.
+- **Install it as an app** — the manifest and the service worker put Chrome's own
+  install icon in the address bar. There is no install button inside the app.
   Once installed it opens in its own window and still works if the line drops.
 - **Who is signed in decides what they see** — the login ID is matched against
   Settings → Users. The sidebar only shows the sections that user is allowed to
   open, and going anywhere else is refused. Sign in as `shahnawaz` for the owner's
   view or `hamza` for a rider's.
-- **A rider's own screen** — a user with the Rider role lands on a screen built
-  for the road: what is on his bike, the address and a Call button for each drop,
-  whether to collect cash or not, and one big **Delivered** button. Riders never
-  get the voice — notifications only. The owner widens or narrows any of this from
-  Settings → Users → Access.
+- **The owner's dashboard** — four numbers, a period picker and one card that
+  changes what it shows, rather than everything at once. Pick **Today**,
+  **Yesterday**, **Last 7 days**, **Last 30 days** or your own dates and the
+  numbers, the chart and the card all follow. Every bar on the chart opens the
+  orders behind it, and the takeaway tile opens the names and numbers that got
+  the number. The live pipeline strip only appears for tonight, because that is
+  the only period it means anything for.
+- **A rider's own screen** — a user with the Rider role gets two pages built for a
+  phone: his home, with what he owes and what is on the bike, and an Orders page
+  with his drops only, split into *On the bike* and *Delivered*. Tapping one opens
+  the customer, the phone number as a Call link, the address, the items, and a
+  box to leave a note the counter can read. Riders never get the voice —
+  notifications only. If the owner ticks **Must accept an order before riding**,
+  the rider has to accept a drop before the Delivered button appears.
 
 ## Where to change things
 
@@ -100,29 +108,37 @@ the agent quotes from.
 
 | | what it means |
 | --- | --- |
-| `toTake(r)` | cash-on-delivery orders he is out with — money he has yet to collect |
-| `r.cash` | cash in his pocket since his last hand-in, shown as **Collected** |
-| `riderDone(r)` | everything he finished this shift |
+| `onRoad(r)` | cash-on-delivery orders still out with him, not collected yet |
+| `r.cash` | cash already in his pocket since his last hand-in |
+| `toTake(r)` | `onRoad + cash` — everything he owes the shop |
+| `riderDone(r)` | every order he finished this shift |
 
-Only cash-on-delivery counts. A prepaid order adds nothing to either figure, and
-`roadCash()` — the **Cash out on the road** tile on the dashboard — is just the sum
-of every rider's `toTake`. **Receive** asks what was actually counted, so a short
-hand-in leaves the rest on his account.
+**To take is the number that matters, and delivering does not change it.** When a
+drop is marked delivered the money simply moves from `onRoad` into `r.cash`, so
+the total he owes stays exactly the same. Only **Receive** at the counter brings
+it down, and it asks what was actually counted so a short hand-in leaves the rest
+on his account. On his own screen the same two numbers read **To take** and
+**To give**.
 
-**There is no separate Kitchen page** — the kitchen queue is the *In kitchen*
-column on the Delivery Orders board, and that is where every "sent to kitchen"
-link now goes.
+Only cash-on-delivery counts — a prepaid order moves neither figure. The
+**Cash to collect** tile on the dashboard is `roadCash()`, the sum of every
+rider's `toTake`.
+
+**The Kitchen page is a coming-soon placeholder.** The real kitchen queue is the
+*In kitchen* column on the Delivery Orders board, and that is where every "sent to
+kitchen" link goes.
 
 **Campaign thumbnails** — each entry in `TPL` (in the `BULK MESSAGE` section)
 carries a `bg` gradient and three `art` icon ids. That is what draws the picture in
 the phone preview, and it changes as you pick a different message. Swap in real
 product photos by replacing `bg` with `url(assets/your-photo.jpg) center/cover`.
 
-**Staff access** — `PERMS` lists every section of the CRM and `ROLES` gives Admin,
-Kitchen and Rider their defaults. Adding a user asks for a role and then lets you
-tick sections individually; the role is only the starting point. A Rider user is
-also tied to a rider on the board (`riderId`), which is how his screen knows whose
-drops to show.
+**Staff access** — `PERMS` lists every section of the CRM and `ROLES` gives the
+two roles, Admin and Rider, their defaults. Adding a user asks for a role and then
+lets you tick sections individually; the role is only the starting point. A Rider
+user is also tied to a rider on the board (`riderId`), which is how his screen
+knows whose drops to show, and carries `can.accept` for whether he has to accept a
+drop before riding.
 
 **Install / offline** — `manifest.webmanifest` and `sw.js` at the project root.
 The worker is network-first, so a deploy is picked up straight away and the cache

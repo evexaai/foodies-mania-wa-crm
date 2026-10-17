@@ -97,8 +97,7 @@ const phoneNo=()=>'+92 3'+ri(0,4)+ri(0,9)+' '+String(ri(1000000,9999999));
 const S={orders:[],omap:{},customers:[],cmap:{},riders:[],chats:[],notifs:[],campaigns:[],takeaway:[],seq:4210,
  users:[{id:'u1',name:'Shahnawaz Damani',login:'shahnawaz',pass:'fm@2025',on:true,role:'admin',perms:null},
   {id:'u2',name:'Kashif Ali',login:'kashif',pass:'counter12',on:true,role:'admin',perms:['dash','chats','orders','riders','customers','bulk']},
-  {id:'u3',name:'Rizwan Shaikh',login:'rizwan',pass:'night#77',on:false,role:'kitchen',perms:null},
-  {id:'u4',name:'Hamza Qureshi',login:'hamza',pass:'bike#44',on:true,role:'rider',riderId:'r0',perms:null},
+  {id:'u4',name:'Hamza Qureshi',login:'hamza',pass:'bike#44',on:true,role:'rider',riderId:'r0',perms:null,can:{accept:true}},
   {id:'u5',name:'Nadia Siddiqui',login:'nadia',pass:'desk2025',on:true,role:'admin',perms:['dash','chats','orders','customers']}],
  set:{wa:true,waNo:'+92 335 2115129',takeNo:'0335-2115129',biz:'Foodies Mania',addr:'Shop 1, R12, Block 8, Federal B Area, Alyabad, near Tabba Heart Hospital, Karachi',phone:'021-37226172',open:'15:00',close:'05:00',
    voice:true,pop:true,lang:'en',vol:.9,voiceName:'',ev:{newChat:true,newOrder:true,needsHuman:true,kitchenReady:true,assigned:false,delivered:true,late:true,takeaway:false,wa:true},sim:true,autoKitchen:false,
@@ -213,7 +212,7 @@ RIDERS.forEach((r,i)=>S.riders.push({id:'r'+i,name:r[0],bike:r[1],phone:phoneNo(
   // riders currently out
   const outs=S.orders.filter(o=>o.status==='out');
   const busy=['r0','r2','r4'];
-  outs.forEach((o,i)=>{o.rider=busy[i%busy.length];const r=S.riders.find(x=>x.id===o.rider);r.orders.push(o.id);r.status='busy';o.dueAt=Date.now()+(60+i*35)*1000});
+  outs.forEach((o,i)=>{o.rider=busy[i%busy.length];o.accepted=false;const r=S.riders.find(x=>x.id===o.rider);r.orders.push(o.id);r.status='busy';o.dueAt=Date.now()+(60+i*35)*1000});
   S.riders.forEach(r=>r.settledAt=SHIFT0+5*HOUR);
   // takeaway shares tonight
   for(let i=0;i<19;i++){const c=pick(S.customers);S.takeaway.push({name:c.name,phone:c.phone,t:SHIFT0+ri(10,460)*MIN})}
@@ -391,10 +390,15 @@ const freeRiders=()=>S.riders.filter(r=>r.status!=='off').sort((a,b)=>a.orders.l
    collected= COD cash in his pocket since his last hand-in
    delivered= orders he finished tonight                                        */
 const riderOut=r=>r.orders.map(id=>S.omap[id]).filter(Boolean);
-const toTake=r=>riderOut(r).filter(o=>o.pay==='COD').reduce((a,o)=>a+o.total,0);
+const onRoad=r=>riderOut(r).filter(o=>o.pay==='COD').reduce((a,o)=>a+o.total,0);
+/* To take = cash still at the customer PLUS cash already in his pocket, so
+   marking a drop delivered moves money between the two without changing this
+   total. Only handing it in at the counter brings it down. */
+const toTake=r=>onRoad(r)+r.cash;
 const riderDone=r=>S.orders.filter(o=>o.rider===r.id&&o.status==='delivered'&&o.t.delivered>=SHIFT0).sort((a,b)=>b.t.delivered-a.t.delivered);
 const riderHolding=r=>riderDone(r).filter(o=>o.pay==='COD'&&o.t.delivered>r.settledAt);
 const roadCash=()=>S.riders.reduce((a,r)=>a+toTake(r),0);
+const allOnRoad=()=>S.riders.reduce((a,r)=>a+onRoad(r),0);
 
 /* ================= actions (the glue that interconnects every page) ================= */
 const A={
@@ -409,7 +413,7 @@ const A={
  start(id){const o=S.omap[id];if(!o||o.status!=='approved')return;o.status='preparing';o.t.preparing=now();changed()},
  ready(id){const o=S.omap[id];if(!o||!['approved','preparing'].includes(o.status))return;if(!o.t.preparing)o.t.preparing=now();o.status='ready';o.t.ready=now();
    notify('kitchenReady',`${o.id} is ready`,`${custName(o)} · ${o.area} · assign a rider`,{page:'riders'},{icon:'chef',tone:'vio'})},
- assign(id,rid){const o=S.omap[id],r=S.riders.find(x=>x.id===rid);if(!o||!r)return;o.status='out';o.t.out=now();o.rider=rid;r.orders.push(id);r.status='busy';
+ assign(id,rid){const o=S.omap[id],r=S.riders.find(x=>x.id===rid);if(!o||!r)return;o.status='out';o.t.out=now();o.rider=rid;o.accepted=false;r.orders.push(id);r.status='busy';
    o.dueAt=Date.now()+ri(70,120)*1000;
    const ch=S.chats.find(c=>c.orderId===id);if(ch)pushMsg(ch,'ai',`Aap ka order raste mein hai! Rider ${r.name.split(' ')[0]} (${r.phone}) aap tak pohoch raha hai.`);
    toast(`${r.name.split(' ')[0]} is on the way`,`${o.id} → ${o.area}`,{icon:'bike',tone:'ok'});Voice.say('assigned');changed()},
@@ -606,7 +610,7 @@ function tick(){
 /* ================= router + chrome ================= */
 const NAV=[
  {id:'dash',t:'Dashboard',ic:'dash'},{id:'chats',t:'Live Conversations',ic:'chat'},{id:'orders',t:'Delivery Orders',ic:'bike'},
- {id:'riders',t:'Riders',ic:'helmet'},{h:'Grow'},{id:'bulk',t:'Bulk Message',ic:'send'},
+ {id:'riders',t:'Riders',ic:'helmet'},{id:'kitchen',t:'Kitchen',ic:'chef',soon:1},{h:'Grow'},{id:'bulk',t:'Bulk Message',ic:'send'},
  {id:'menu',t:'Menu Management',ic:'cloche'},{id:'customers',t:'Customers',ic:'users'},{id:'reports',t:'Payments & Reports',ic:'chart',soon:1},
  {id:'promos',t:'Promotions & Offers',ic:'tag',soon:1},{h:'Account'},{id:'settings',t:'Settings',ic:'gear'}];
 const BNAV=[{id:'dash',t:'Home',ic:'dash'},{id:'chats',t:'Chats',ic:'chat'},{id:'orders',t:'Orders',ic:'bike'},{id:'riders',t:'Riders',ic:'helmet'},{id:'more',t:'More',ic:'bars'}];
@@ -697,18 +701,11 @@ const Install={
  init(){
    if('serviceWorker' in navigator)
      addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
-   addEventListener('beforeinstallprompt',e=>{e.preventDefault();this.evt=e;this.show(true)});
-   addEventListener('appinstalled',()=>{this.evt=null;this.show(false);
-     toast('Installed','Foodies Mania CRM now opens from your home screen',{icon:'check',tone:'ok'})});
-   const b=$('#installBtn');
-   if(b)b.onclick=async()=>{
-     const e=this.evt;if(!e)return;
-     this.evt=null;this.show(false);
-     try{e.prompt();await e.userChoice}catch(err){}
-   };
+   /* Chrome puts its own install icon in the address bar once the manifest and
+      this worker are in place — the app does not add a button of its own. */
+   addEventListener('appinstalled',()=>
+     toast('Installed','Foodies Mania CRM now opens from your home screen',{icon:'check',tone:'ok'}));
  },
- show(on){const b=$('#installBtn');if(b)b.hidden=!on},
- can(){return !!this.evt},
  standalone(){try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}}
 };
 function toggleFull(){
@@ -782,6 +779,13 @@ function riderPicker(oid,after){
    ${off.length?`<div class="rp-h">Off duty</div>${off.map(row).join('')}`:''}</div>`,m=>$$('[data-r]',m).forEach(b=>b.onclick=()=>{A.assign(oid,b.dataset.r);closeModal();after&&after()}));
 }
 
+const canAccept=u=>!!(u&&u.can&&u.can.accept);
+const isAccepted=o=>o.accepted!==false||!canAccept(me());
+A.accept=function(id){const o=S.omap[id];if(!o||o.status!=='out')return;o.accepted=true;o.t.accepted=now();
+  toast('Order accepted',o.id+' · '+custName(o)+' · '+o.area,{icon:'check',tone:'ok'});changed()};
+A.riderNote=function(id,txt){const o=S.omap[id];if(!o)return;o.riderNote=txt;
+  toast('Note saved',o.id+' · the counter can see this too',{icon:'note',tone:'ok'});changed()};
+
 /* ================= A RIDER'S OWN SCREEN =================
    Everything he needs and nothing he does not: what is on his bike, what he
    has to collect, and one button to mark a drop done. */
@@ -793,8 +797,8 @@ function riderHome(el,keep){
    <div class="hello"><div><h2>Salam, ${esc(r.name.split(' ')[0])}</h2><p>${out.length?`You have ${out.length} order${out.length===1?'':'s'} on the bike right now.`:'Nothing on the bike. The counter will send you the next one.'}</p></div>
     <div class="shift">${ic(r.status==='off'?'pause':'bike','sm')}<span>${r.status==='off'?'Off duty':r.status==='busy'?'On delivery':'Free — waiting for an order'}</span></div></div>
    <div class="grid g3 st" style="margin-top:16px">
-    <button class="card kpi rk" data-br="take:${r.id}"><div class="ico">${ic('cash')}</div><div><div class="lbl">To take</div><div class="val num">${rs(toTake(r))}</div><div class="dl"><span class="dim">Cash to collect at the door</span></div></div></button>
-    <button class="card kpi rk" data-br="hold:${r.id}"><div class="ico">${ic('wallet')}</div><div><div class="lbl">Collected</div><div class="val num">${rs(r.cash)}</div><div class="dl"><span class="dim">To hand in at the counter</span></div></div></button>
+    <button class="card kpi rk" data-br="take:${r.id}"><div class="ico">${ic('cash')}</div><div><div class="lbl">To take</div><div class="val num">${rs(toTake(r))}</div><div class="dl"><span class="dim">Owed to the shop in total</span></div></div></button>
+    <button class="card kpi rk" data-br="hold:${r.id}"><div class="ico">${ic('wallet')}</div><div><div class="lbl">To give</div><div class="val num">${rs(r.cash)}</div><div class="dl"><span class="dim">Hand this in at the counter</span></div></div></button>
     <button class="card kpi rk" data-br="done:${r.id}"><div class="ico">${ic('check')}</div><div><div class="lbl">Delivered tonight</div><div class="val num">${r.today}</div><div class="dl"><span class="dim">${rs(r.earn)} earned</span></div></div></button>
    </div>
    <div class="card" style="margin-top:16px"><div class="card-h"><h3>${ic('bike')}On the bike</h3><span class="dim sp" style="font-size:12.5px">Oldest first</span></div>
@@ -806,13 +810,78 @@ function riderHome(el,keep){
        <div class="its dim">${esc(itemsShort(o))}</div>
        ${o.note?`<div class="nt">${ic('note','sm')}${esc(o.note)}</div>`:''}
        <div class="r3"><span class="${o.pay==='COD'?'cod':'dim'}">${o.pay==='COD'?'Collect '+rs(o.total):'Already paid · '+rs(o.total)}</span>
-        <button class="btn ok" data-dl="${o.id}">${ic('check')}Delivered</button></div>
+        ${isAccepted(o)?`<button class="btn ok" data-dl="${o.id}">${ic('check')}Delivered</button>`
+                       :`<button class="btn pri" data-ac="${o.id}">${ic('check')}Accept this order</button>`}</div>
       </div>`}).join(''):`<div class="empty">${ic('check')}Nothing on the bike right now.</div>`}</div></div>
    <div class="card" style="margin-top:16px"><div class="card-h"><h3>${ic('clock')}Delivered tonight</h3><span class="dim sp" style="font-size:12.5px">${done.length} order${done.length===1?'':'s'}</span></div>
     <div class="lst">${done.length?done.slice(0,8).map(o=>`<div data-k="rh${o.id}"><span class="food sm">${ic('check','sm')}</span><div class="grow"><b class="ell">${esc(custName(o))}</b><div class="dim" style="font-size:12px">${esc(o.area)} · ${t12(o.t.delivered)}</div></div><b class="num">${rs(o.total)}</b></div>`).join(''):`<div class="empty">${ic('hourglass')}No deliveries yet tonight.</div>`}</div></div>`;
   if(keep){const sc=el.scrollTop;el.innerHTML=html;el.scrollTop=sc}else el.innerHTML=html;
   $$('[data-dl]',el).forEach(b=>b.onclick=()=>A.delivered(b.dataset.dl));
+  $$('[data-ac]',el).forEach(b=>b.onclick=()=>A.accept(b.dataset.ac));
+  $$('[data-rd]',el).forEach(b=>b.onclick=()=>riderDrop(b.dataset.rd));
   $$('[data-br]',el).forEach(b=>b.onclick=()=>{const [kind,rid]=b.dataset.br.split(':');riderBreakdown(S.riders.find(x=>x.id===rid),kind)});
+  settle(el);
+}
+
+/* ---------- one drop, everything about it, on a phone ---------- */
+function riderDrop(id){
+  const o=S.omap[id];if(!o)return;const c=S.cmap[o.cid];
+  openDrawer(`<div class="dw-h"><div class="grow"><div class="row"><h3 class="mono">${o.id}</h3>${stTag(o.status)}</div>
+    <small class="muted">${esc(o.area)} · ${t12(o.t.placed)}</small></div>
+    <button class="iconbtn" data-close aria-label="Close">${ic('x')}</button></div>
+   <div class="dw-b">
+    <div class="box" style="display:grid;gap:12px">
+     <div class="row" style="gap:12px"><div class="av ${avc(c.name)}">${ini(c.name)}</div>
+      <div class="grow"><b style="font-size:16px">${esc(c.name)}</b><div class="dim" style="font-size:12.5px">${c.n} past orders</div></div></div>
+     <div class="row" style="gap:8px"><a class="btn full" href="tel:${esc(c.phone.replace(/\s/g,''))}">${ic('phone','sm')}${esc(c.phone)}</a></div>
+     <div class="row" style="align-items:flex-start;gap:8px">${ic('pin','sm')}<span style="font-size:14px;line-height:1.5">${esc(o.addr)}</span></div>
+    </div>
+    <div class="sec"><h4>What to hand over</h4><div class="box" style="display:grid;gap:10px">
+     ${o.items.map(it=>`<div class="row">${foodIc(it.mid,'sm')}<div class="grow"><b>${it.qty}× ${esc(MM[it.mid].name)}</b>${it.note?`<div style="color:var(--warn);font-size:12px">${esc(it.note)}</div>`:''}</div></div>`).join('')}
+     ${o.note?`<div class="row" style="color:var(--warn);font-size:13px;gap:8px;padding:8px 10px;border-radius:10px;background:var(--warnsoft)">${ic('note','sm')}${esc(o.note)}</div>`:''}
+     <div class="kv tot"><span style="color:var(--fg)">${o.pay==='COD'?'Collect at the door':'Already paid'}</span><span class="num">${rs(o.total)}</span></div></div></div>
+    <div class="sec"><h4>Anything the counter should know?</h4>
+     <textarea class="tx" id="rdNote" rows="3" placeholder="e.g. gate was locked, customer asked for the next one earlier">${esc(o.riderNote||'')}</textarea>
+     <button class="btn full" id="rdSave" style="margin-top:10px">${ic('note')}Save note</button></div>
+   </div>
+   <div class="dw-f">${o.status==='out'?(isAccepted(o)
+     ?`<button class="btn ok full" data-a="dl">${ic('check')}Mark delivered</button>`
+     :`<button class="btn pri full" data-a="ac">${ic('check')}Accept this order</button>`):''}</div>`,d=>{
+    $('#rdSave',d).onclick=()=>A.riderNote(id,$('#rdNote',d).value.trim());
+    $$('[data-a]',d).forEach(b=>b.onclick=()=>{
+      if(b.dataset.a==='dl')A.delivered(id);else A.accept(id);
+      closeDrawer();
+    });
+  });
+}
+
+/* ---------- the rider's Orders page: only what is his ---------- */
+let rOrdTab='active';
+function riderOrders(el,keep){
+  const r=myRider();
+  if(!r){el.innerHTML=`<div class="empty card">${ic('helmet')}This login is not linked to a rider yet.</div>`;return}
+  const active=riderOut(r).sort((a,b)=>a.t.out-b.t.out);
+  const done=riderDone(r);
+  const L=rOrdTab==='active'?active:done;
+  const html=`
+   <div class="mob-tabs" id="rot" style="display:flex">
+    <button class="chip ${rOrdTab==='active'?'on':''}" data-t="active">On the bike <b>${active.length}</b></button>
+    <button class="chip ${rOrdTab==='done'?'on':''}" data-t="done">Delivered <b>${done.length}</b></button></div>
+   <div class="rdrops">${L.length?L.map(o=>{const c=S.cmap[o.cid];return `
+     <button class="rdrop" data-rd="${o.id}" data-k="ro${o.id}${o.status}${o.accepted}">
+      <div class="r1"><span class="mono" style="color:var(--or2)">${o.id}</span>${payTag(o)}
+       ${o.status==='out'&&!isAccepted(o)?'<span class="tag t-new">Tap to accept</span>':''}
+       <span class="tm">${ic('clock','sm')}${o.status==='delivered'?t12(o.t.delivered):ago(o.t.out)}</span></div>
+      <div class="who"><b>${esc(c.name)}</b></div>
+      <div class="addr">${ic('pin','sm')}<span>${esc(o.addr)}</span></div>
+      <div class="its dim">${esc(itemsShort(o))}</div>
+      ${o.riderNote?`<div class="nt">${ic('note','sm')}${esc(o.riderNote)}</div>`:''}
+      <div class="r3"><span class="${o.pay==='COD'?'cod':'dim'}">${o.pay==='COD'?(o.status==='delivered'?'Collected ':'Collect ')+rs(o.total):'Prepaid · '+rs(o.total)}</span>
+       <span class="btn sm ghost">${ic('chev','sm')}Open</span></div>
+     </button>`}).join(''):`<div class="empty card">${ic(rOrdTab==='active'?'check':'hourglass')}${rOrdTab==='active'?'Nothing on the bike right now.':'No deliveries yet tonight.'}</div>`}</div>`;
+  if(keep){const sc=el.scrollTop;el.innerHTML=html;el.scrollTop=sc}else el.innerHTML=html;
+  $$('#rot button',el).forEach(b=>b.onclick=()=>{rOrdTab=b.dataset.t;riderOrders(el)});
+  $$('[data-rd]',el).forEach(b=>b.onclick=()=>riderDrop(b.dataset.rd));
   settle(el);
 }
 
@@ -830,65 +899,230 @@ function hourChart(){
   const lp=b.map((v,i)=>[L+i*bw+bw/2,y(v)]);const line=lp.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
   const xl=HLBL.map((l,i)=>`<text x="${L+i*bw+bw/2}" y="${H-8}" text-anchor="middle" font-size="10.5" fill="${i===curH?'var(--or2)':'var(--dim)'}" font-weight="${i===curH?700:400}">${l}</text>`).join('');
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Orders per hour tonight versus last week"><defs><linearGradient id="bh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--or2)"/><stop offset="1" stop-color="var(--or)" stop-opacity=".5"/></linearGradient></defs>${g}${bars}<path d="${line}" fill="none" stroke="var(--cream)" stroke-width="2" stroke-dasharray="4 5" stroke-linecap="round" opacity=".8"/>${lp.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="2.5" fill="var(--cream)"/>`).join('')}${xl}</svg>`}
+const greet=()=>{const h=new Date(now()).getHours();return h<5?'Still up':h<12?'Good morning':h<17?'Good afternoon':'Good evening'};
+/* ---------- which nights the dashboard is looking at ---------- */
+const RANGES=[['today','Today'],['yest','Yesterday'],['7d','Last 7 days'],['30d','Last 30 days'],['custom','Custom']];
+let dashRange={id:'today',from:'',to:''};
+/* a trading night runs 3 PM to 5 AM, so a "day" here is a night, not a calendar date */
+function nightStart(ymd){const d=new Date(ymd+'T00:00:00');d.setHours(15,0,0,0);return d.getTime()}
+function rangeBounds(r=dashRange){
+  if(r.id==='yest')  return [SHIFT0-DAY,SHIFT1-DAY];
+  if(r.id==='7d')    return [SHIFT0-6*DAY,SHIFT1];
+  if(r.id==='30d')   return [SHIFT0-29*DAY,SHIFT1];
+  if(r.id==='custom'&&r.from){
+    const a=nightStart(r.from), b=(r.to?nightStart(r.to):a)+14*HOUR;
+    return [Math.min(a,b),Math.max(a+14*HOUR,b)];
+  }
+  return [SHIFT0,SHIFT1];
+}
+const rangeLabel=()=>{
+  const r=dashRange;
+  if(r.id==='custom'&&r.from)return r.to&&r.to!==r.from?dshort(nightStart(r.from))+' – '+dshort(nightStart(r.to)):dstr(nightStart(r.from));
+  return (RANGES.find(x=>x[0]===r.id)||RANGES[0])[1];
+};
+const rangeNights=()=>{const [a,b]=rangeBounds();return Math.max(1,Math.round((b-a)/DAY))};
+const inSpan=(o,a,b)=>o.t.placed>=a&&o.t.placed<b;
+const rangeOrders=()=>{const [a,b]=rangeBounds();return S.orders.filter(o=>inSpan(o,a,b)&&o.status!=='cancelled')};
+/* a trading night is 14 hours inside a 24-hour day, so the period before is a
+   whole number of days back — not the window's own length */
+const prevOrders=()=>{const [a,b]=rangeBounds();const back=DAY*rangeNights();return S.orders.filter(o=>inSpan(o,a-back,b-back)&&o.status!=='cancelled')};
+const rangeTakeaway=()=>{const [a,b]=rangeBounds();return S.takeaway.filter(t=>t.t>=a&&t.t<b)};
+
+/* ---------- one chart that knows whether it is showing hours or nights ---------- */
+function chartModel(){
+  const [a,b]=rangeBounds();
+  if(rangeNights()<=1){
+    const night=a-15*HOUR;
+    const vals=hourly(night,Math.min(b,now()));
+    const cmp=hourly(night-7*DAY);
+    const curH=dashRange.id==='today'?Math.min(13,Math.floor((now()-a)/HOUR)):13;
+    return {kind:'hour',labels:HLBL,vals,cmp,cur:curH,
+      keyOf:i=>[night+15*HOUR+i*HOUR,night+15*HOUR+(i+1)*HOUR],
+      title:i=>HLBL[i]};
+  }
+  const n=rangeNights(),vals=[],labels=[],keys=[];
+  for(let i=0;i<n;i++){
+    const from=a+i*DAY,to=from+14*HOUR;
+    vals.push(S.orders.filter(o=>o.status!=='cancelled'&&o.t.placed>=from&&o.t.placed<to).length);
+    labels.push(dshort(from));keys.push([from,to]);
+  }
+  return {kind:'night',labels,vals,cmp:null,cur:-1,keyOf:i=>keys[i],title:i=>labels[i]};
+}
+function barChart(){
+  const m=chartModel();
+  const N=m.vals.length;
+  const W=640,H=220,L=30,R=8,T=12,B=26;
+  const mx=Math.ceil(Math.max(...m.vals,...(m.cmp||[]),4)/4)*4;
+  const bw=(W-L-R)/N, y=v=>T+(H-T-B)*(1-v/mx);
+  let g='';for(let i=0;i<=4;i++){const v=mx/4*i;
+    g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="10.5" fill="var(--dim)">${v}</text>`}
+  let bars='';
+  m.vals.forEach((v,i)=>{
+    if(m.kind==='hour'&&i>m.cur)return;
+    const x=L+i*bw+bw*.18,w=bw*.64,h=(H-T-B)*(v/mx);
+    bars+=`<rect class="cb" data-b="${i}" x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(1,h).toFixed(1)}" rx="4" fill="${i===m.cur?'url(#bh)':'var(--or)'}" opacity="${i===m.cur?1:.85}"><title>${m.title(i)}: ${v} orders — tap for the list</title></rect>`;
+    if(i===m.cur&&v)bars+=`<text x="${x+w/2}" y="${y(v)-6}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--or2)">${v}</text>`;
+  });
+  let cmpLine='';
+  if(m.cmp){
+    const lp=m.cmp.map((v,i)=>[L+i*bw+bw/2,y(v)]);
+    cmpLine=`<path d="${lp.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ')}" fill="none" stroke="var(--cream)" stroke-width="2" stroke-dasharray="4 5" stroke-linecap="round" opacity=".8"/>`
+      +lp.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="2.5" fill="var(--cream)"/>`).join('');
+  }
+  const step=N>14?Math.ceil(N/10):1;
+  const xl=m.labels.map((l,i)=>i%step?'':`<text x="${L+i*bw+bw/2}" y="${H-8}" text-anchor="middle" font-size="10.5" fill="${i===m.cur?'var(--or2)':'var(--dim)'}" font-weight="${i===m.cur?700:400}">${l}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Orders over the chosen period"><defs><linearGradient id="bh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--or2)"/><stop offset="1" stop-color="var(--or)" stop-opacity=".5"/></linearGradient></defs>${g}${bars}${cmpLine}${xl}</svg>`;
+}
+/* tapping a bar lists the orders behind it */
+function barDrill(i){
+  const m=chartModel();const [a,b]=m.keyOf(i);
+  const L=S.orders.filter(o=>o.status!=='cancelled'&&o.t.placed>=a&&o.t.placed<b).sort((x,y)=>x.t.placed-y.t.placed);
+  const total=L.reduce((s2,o)=>s2+o.total,0);
+  modal(`<div class="md-h"><div class="grow"><h3>${esc(m.kind==='hour'?m.title(i)+' — '+HLBL[i].replace('P',' PM').replace('A',' AM'):m.title(i))}</h3><p>${L.length} order${L.length===1?'':'s'} · ${rs(total)}</p></div><button class="iconbtn" data-close>${ic('x')}</button></div>
+   <div class="md-b">${L.length?`<div class="brlist">${L.map(o=>`<button class="brrow" data-o="${o.id}"><span class="mono" style="color:var(--or2)">${o.id}</span><div class="grow"><b class="ell">${esc(custName(o))}</b><div class="dim" style="font-size:12px">${esc(o.area)} · ${t12(o.t.placed)}</div></div><div style="text-align:right"><b class="num">${rs(o.total)}</b><div style="font-size:11.5px">${stTag(o.status)}</div></div></button>`).join('')}</div>`:`<div class="empty">${ic('hourglass')}No orders in this slot.</div>`}</div>
+   <div class="md-f"><button class="btn ghost" data-close>Close</button></div>`,
+   mm=>$$('[data-o]',mm).forEach(x=>x.onclick=()=>{closeModal();orderDrawer(x.dataset.o)}));
+}
+
+/* ---------- who got the takeaway number ---------- */
+function takeawayList(){
+  const L=rangeTakeaway().slice().reverse();
+  modal(`<div class="md-h"><div class="grow"><h3>Takeaway number shared</h3><p>${L.length} customer${L.length===1?'':'s'} got <b class="mono">${esc(S.set.takeNo)}</b> from the AI agent · ${esc(rangeLabel()).toLowerCase()}</p></div><button class="iconbtn" data-close>${ic('x')}</button></div>
+   <div class="md-b">${L.length?`<div class="brlist">${L.map(t=>`<div class="brrow" style="cursor:default"><div class="av sm c2">${ini(t.name)}</div><div class="grow"><b class="ell">${esc(t.name)}</b><div class="dim mono" style="font-size:12.5px">${esc(t.phone)}</div></div><span class="dim" style="font-size:12px">${t12(t.t)}</span></div>`).join('')}</div>`:`<div class="empty">${ic('take')}Nobody asked for takeaway in this period.</div>`}</div>
+   <div class="md-f"><button class="btn ghost" data-close>Close</button></div>`);
+}
+
+/* ================= DASHBOARD ================= */
+let dashTab='recent';
 PAGES.dash={
  render(el){
   if(isRider())return riderHome(el);
-  el.innerHTML=`<div class="hello"><div><h2>Good evening, Shahnawaz</h2><p>Here is how tonight is going. Everything below updates live.</p></div><div class="shift">${ic('moon','sm')}<span>Tonight's shift · 3:00 PM – 5:00 AM</span><span class="bar"><i id="shBar"></i></span><b id="shLeft" class="num"></b></div></div>
-  <div class="grid g5 st" id="kpis"></div>
+  el.innerHTML=`<div class="hello"><div><h2>${esc(greet())}, ${esc(me().name.split(' ')[0])}</h2><p id="dSub">Here is how tonight is going. Everything below updates live.</p></div>
+    <div class="rng" id="rng"></div></div>
+  <div class="grid g4 st" id="kpis"></div>
   <div class="card pipe" id="pipe" style="margin-top:16px"></div>
-  <div class="grid g21" style="margin-top:16px"><div class="card chart"><div class="card-h"><h3>${ic('chart')}Orders by hour</h3><div class="legend sp"><span><i style="background:var(--or)"></i>Tonight</span><span><i style="background:var(--cream);height:2px;border-radius:0"></i>Same night last week</span></div></div><div id="hc"></div></div>
+  <div class="grid g21" style="margin-top:16px">
+   <div class="card chart"><div class="card-h"><h3>${ic('chart')}<span id="chTtl">Orders by hour</span></h3><div class="legend sp" id="chLeg"></div></div><div id="hc"></div>
+    <div class="dim" style="font-size:12px;margin-top:6px">${ic('eye','sm')} Tap any bar to see the orders behind it.</div></div>
    <div class="card"><div class="card-h"><h3>${ic('helmet')}Riders right now</h3><button class="link sp" data-go="riders">Manage ${ic('chev','sm')}</button></div><div class="lst" id="dRiders"></div></div></div>
-  <div class="grid g21" style="margin-top:16px"><div class="card"><div class="card-h"><h3>${ic('bike')}Recent orders</h3><button class="link sp" data-go="orders">All orders ${ic('chev','sm')}</button></div><div class="tbl-wrap"><table class="tbl tbl-d"><thead><tr><th>Order</th><th>Customer</th><th>Area</th><th>Items</th><th>Total</th><th>Status</th><th>Time</th></tr></thead><tbody id="dRecent"></tbody></table><div class="mcards lst" id="dRecentM" style="padding:0 14px 8px"></div></div></div>
-   <div class="card"><div class="card-h"><h3>${ic('bot')}Live AI conversations</h3><button class="link sp" data-go="chats">Open inbox ${ic('chev','sm')}</button></div><div class="lst" id="dChats"></div></div></div>
-  <div class="grid g3" style="margin-top:16px"><div class="card"><div class="card-h"><h3>${ic('flame')}Top sellers tonight</h3></div><div class="bars" id="dTop"></div></div>
-   <div class="card"><div class="card-h"><h3>${ic('pin')}Top delivery areas</h3></div><div class="bars" id="dAreas"></div></div>
-   <div class="card"><div class="card-h"><h3>${ic('take')}Takeaway number shared</h3><span class="tag sp">${S.set.takeNo}</span></div><div class="lst" id="dTake"></div></div></div>`;
+  <div class="card" style="margin-top:16px"><div class="card-h"><div class="dtabs" id="dTabs"></div><button class="link sp" id="dMore"></button></div><div id="dPane"></div></div>`;
   $$('[data-go]',el).forEach(b=>b.onclick=()=>go(b.dataset.go));
   this.refresh(true);
+ },
+ ranges(){
+  const r=$('#rng');if(!r)return;
+  r.innerHTML=RANGES.map(([id,t])=>`<button class="${dashRange.id===id?'on':''}" data-r="${id}">${t}</button>`).join('');
+  $$('button',r).forEach(b=>b.onclick=()=>{
+    if(b.dataset.r==='custom')return this.customRange();
+    dashRange={id:b.dataset.r,from:'',to:''};this.refresh(true);
+  });
+ },
+ customRange(){
+  const today=new Date(SHIFT0).toISOString().slice(0,10);
+  modal(`<div class="md-h"><div class="grow"><h3>Pick your own dates</h3><p>A night runs 3 PM to 5 AM, so a date means that night's trading.</p></div><button class="iconbtn" data-close>${ic('x')}</button></div>
+   <div class="md-b"><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">
+    <label class="field"><span>From</span><input class="tx" type="date" id="cfFrom" max="${today}" value="${dashRange.from||today}"></label>
+    <label class="field"><span>To</span><input class="tx" type="date" id="cfTo" max="${today}" value="${dashRange.to||today}"></label>
+   </div></div>
+   <div class="md-f"><button class="btn ghost" data-close>Cancel</button><button class="btn pri" id="cfOk">Show it</button></div>`,m=>{
+    $('#cfOk',m).onclick=()=>{
+      const f=$('#cfFrom',m).value,t=$('#cfTo',m).value;
+      if(!f){toast('Pick a start date','',{icon:'alert',tone:'bad'});return}
+      dashRange={id:'custom',from:f,to:t||f};closeModal();this.refresh(true);
+    };
+  });
+ },
+ tabs(){
+  const T=[['recent','Recent orders','bike'],['chats','Live chats','bot'],['top','Top sellers','flame'],['areas','Areas','pin']];
+  $('#dTabs').innerHTML=T.map(([id,t,i])=>`<button class="${dashTab===id?'on':''}" data-d="${id}">${ic(i,'sm')}<span>${t}</span></button>`).join('');
+  $$('#dTabs button').forEach(b=>b.onclick=()=>{dashTab=b.dataset.d;this.pane()});
+  const more=$('#dMore');
+  const go2={recent:['orders','All orders'],chats:['chats','Open inbox'],top:['menu','Menu'],areas:['settings','Areas']}[dashTab];
+  more.innerHTML=go2[1]+ic('chev','sm');more.onclick=()=>go(go2[0]);
+ },
+ pane(){
+  const box=$('#dPane');if(!box)return;
+  this.tabs();
+  const L=rangeOrders();
+  if(dashTab==='recent'){
+   const rec=L.slice(-10).reverse();
+   box.innerHTML=`<div class="tbl-wrap"><table class="tbl tbl-d"><thead><tr><th>Order</th><th>Customer</th><th>Area</th><th>Total</th><th>Status</th><th>Time</th></tr></thead><tbody>${rec.map(o=>`<tr data-o="${o.id}"><td class="mono" style="color:var(--or2)">${o.id}</td><td>${esc(custName(o))}</td><td class="muted">${esc(o.area)}</td><td class="num"><b>${rs(o.total)}</b></td><td>${stTag(o.status)}</td><td class="dim">${t12(o.t.placed)}</td></tr>`).join('')}</tbody></table>
+    <div class="mcards lst">${rec.map(o=>`<button data-o="${o.id}"><div class="grow"><div class="row"><span class="mono" style="color:var(--or2)">${o.id}</span><b class="ell">${esc(custName(o))}</b></div><div class="dim" style="font-size:12px">${esc(o.area)} · ${t12(o.t.placed)}</div></div><div style="text-align:right;display:grid;gap:4px;justify-items:end"><b class="num">${rs(o.total)}</b>${stTag(o.status)}</div></button>`).join('')}</div></div>`;
+   if(!rec.length)box.innerHTML=`<div class="empty">${ic('bike')}No orders in this period.</div>`;
+   $$('[data-o]',box).forEach(r=>r.onclick=()=>orderDrawer(r.dataset.o));
+  }
+  else if(dashTab==='chats'){
+   const ac=S.chats.filter(c=>c.state==='ai'||c.state==='human').slice(0,6);
+   box.innerHTML=ac.length?`<div class="lst">${ac.map(c=>{const cu=S.cmap[c.cid];const lm=c.msgs.at(-1);
+     return `<button data-ch="${c.id}"><div class="av sm ${avc(cu.name)}">${ini(cu.name)}</div><div class="grow"><div class="row"><b class="ell">${esc(cu.name)}</b><span class="tag ${c.state==='human'?'t-human':'t-ai'}" style="margin-left:auto">${c.state==='human'?'Needs human':'AI active'}</span></div><div class="dim ell" style="font-size:12px">${c.typing?'AI is typing…':esc(lm?lm.text.split('\n')[0].replace(/\*/g,''):'')}</div></div></button>`}).join('')}</div>`
+     :`<div class="empty">${ic('chat')}No active chats right now.</div>`;
+   $$('[data-ch]',box).forEach(b=>b.onclick=()=>go('chats',{chat:b.dataset.ch}));
+  }
+  else if(dashTab==='top'){
+   const cnt={};L.forEach(o=>o.items.forEach(it=>{if(MM[it.mid].cat!=='drink')cnt[it.mid]=(cnt[it.mid]||0)+it.qty}));
+   const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,8);const mx=top[0]?.[1]||1;
+   box.innerHTML=top.length?`<div class="bars">${top.map(([m,n])=>`<div class="br"><span class="row ell">${foodIc(m,'sm')}<span class="ell">${esc(MM[m].name)}</span></span><b class="num">${n}</b><span class="tr"><i style="width:${n/mx*100}%"></i></span></div>`).join('')}</div>`
+     :`<div class="empty">${ic('flame')}Nothing sold in this period.</div>`;
+  }
+  else{
+   const ac2={};L.forEach(o=>ac2[o.area]=(ac2[o.area]||0)+1);
+   const ta=Object.entries(ac2).sort((a,b)=>b[1]-a[1]).slice(0,8);const mx2=ta[0]?.[1]||1;
+   box.innerHTML=ta.length?`<div class="bars">${ta.map(([a,n])=>`<div class="br"><span class="ell">${esc(a)} <span class="dim">· ${rs(feeOf(a))} fee</span></span><b class="num">${n}</b><span class="tr"><i style="width:${n/mx2*100}%"></i></span></div>`).join('')}</div>`
+     :`<div class="empty">${ic('pin')}No deliveries in this period.</div>`;
+  }
+  settle(box);
  },
  refresh(first){
   const el=$('#pg');if(!el)return;
   if(isRider())return riderHome(el,true);
-  const tn=tonight().filter(o=>o.status!=='cancelled');const lastWk=S.orders.filter(o=>o.t.placed>=SHIFT0-7*DAY&&o.t.placed<now()-7*DAY&&o.status!=='cancelled');
-  const rev=tn.reduce((a,o)=>a+o.total,0),lrev=lastWk.reduce((a,o)=>a+o.total,0);
-  const aov=tn.length?rev/tn.length:0,laov=lastWk.length?lrev/lastWk.length:0;
-  const tk=S.takeaway.filter(t=>t.t>=SHIFT0).length;
+  if(!$('#kpis'))return;
+  if(first)this.ranges();
+  const live=dashRange.id==='today';
+  const L=rangeOrders(),prev=prevOrders();
+  const rev=L.reduce((a,o)=>a+o.total,0),prev_rev=prev.reduce((a,o)=>a+o.total,0);
+  const tk=rangeTakeaway().length;
   const pct=(a,b)=>b?Math.round((a-b)/b*100):0;
   const nights=[...Array(7)].map((_,i)=>SHIFT0-15*HOUR-(6-i)*DAY);
   const sp1=nights.map(n=>nightStats(n).length),sp2=nights.map(n=>nightStats(n).reduce((a,o)=>a+o.total,0));
-  const road=roadCash();
-  const K=[['bike','Delivery orders tonight',tn.length,pct(tn.length,lastWk.length),sp1,null],['wallet','Revenue tonight',rev,pct(rev,lrev),sp2,rs],['cash','Average order',aov,pct(aov,laov),sp2.map((v,i)=>v/(sp1[i]||1)),rs],['helmet','Cash out on the road',road,null,null,rs],['take','Takeaway number shared',tk,null,null,null]];
+  const K=[
+   ['bike','Orders',L.length,pct(L.length,prev.length),sp1,null,null],
+   ['wallet','Revenue',rev,pct(rev,prev_rev),sp2,rs,null],
+   ['helmet','Cash to collect',roadCash(),null,null,rs,'riders'],
+   ['take','Takeaway number shared',tk,null,null,null,'take']
+  ];
   const kp=$('#kpis');
-  if(first||!kp.children.length){kp.innerHTML=K.map((x,i)=>`<div class="card kpi kpi2" style="--d:${i}"><div class="kh"><div class="ico">${ic(x[0])}</div><div class="lbl">${x[1]}</div></div><div class="val num" id="kv${i}">0</div><div class="kft"><div class="dl" id="kd${i}"></div>${x[4]?spark(x[4],i===1?'var(--or2)':'var(--or)'):''}</div></div>`).join('')}
-  const CAP={3:'With riders, not collected yet',4:'Customers who chose takeaway'};
-  K.forEach((x,i)=>{countUp($('#kv'+i),x[2],x[5]||undefined);$('#kd'+i).innerHTML=x[3]==null?`<span class="dim">${CAP[i]||''}</span>`:`<span class="${x[3]>=0?'up':'down'}">${x[3]>=0?'▲':'▼'} ${Math.abs(x[3])}%</span><span class="dim">vs last week</span>`});
-  // shift progress
-  const p=Math.min(1,(now()-SHIFT0)/(SHIFT1-SHIFT0));$('#shBar').style.width=(p*100).toFixed(1)+'%';const left=Math.max(0,SHIFT1-now());$('#shLeft').textContent=Math.floor(left/HOUR)+'h '+Math.floor(left%HOUR/MIN)+'m left';
-  // pipeline
-  const PL=[['new','Awaiting approval','var(--warn)','orders','Tap to approve'],['kitchen','In kitchen','var(--blue)','orders','Queued + cooking'],['ready','Ready for rider','var(--vio)','riders','Assign a rider'],['out','Out for delivery','var(--cyan)','riders','On the road'],['delivered','Delivered tonight','var(--ok)','orders','Completed']];
-  const pc={new:byStatus('new').length,kitchen:byStatus('approved').length+byStatus('preparing').length,ready:byStatus('ready').length,out:byStatus('out').length,delivered:tonight().filter(o=>o.status==='delivered').length};
-  const pp=$('#pipe');if(!pp.children.length){pp.innerHTML=PL.map(x=>`<button data-go="${x[3]}" data-st="${x[0]}"><span class="pl"><span class="pd" style="background:${x[2]}"></span>${x[1]}</span><span class="pv num" id="pv-${x[0]}">0</span><span class="ps">${x[4]}</span></button>`).join('');$$('button',pp).forEach(b=>b.onclick=()=>go(b.dataset.go,{tab:b.dataset.st}))}
-  PL.forEach(x=>countUp($('#pv-'+x[0]),pc[x[0]]));
-  $('#hc').innerHTML=hourChart();
-  // riders
+  if(first||kp.children.length!==K.length){
+    kp.innerHTML=K.map((x,i)=>`<${x[6]?'button':'div'} class="card kpi kpi2 ${x[6]?'tap':''}" ${x[6]?`data-k2="${x[6]}"`:''} style="--d:${i}"><div class="kh"><div class="ico">${ic(x[0])}</div><div class="lbl">${x[1]}</div></div><div class="val num" id="kv${i}">0</div><div class="kft"><div class="dl" id="kd${i}"></div>${x[4]?spark(x[4],i===1?'var(--or2)':'var(--or)'):''}</div></${x[6]?'button':'div'}>`).join('');
+    $$('[data-k2]',kp).forEach(b=>b.onclick=()=>b.dataset.k2==='take'?takeawayList():go('riders'));
+  }
+  const CAP={2:'With riders, not handed in yet',3:'Tap to see who got it'};
+  K.forEach((x,i)=>{countUp($('#kv'+i),x[2],x[5]||undefined);
+    $('#kd'+i).innerHTML=x[3]==null?`<span class="dim">${CAP[i]||''}</span>`:`<span class="${x[3]>=0?'up':'down'}">${x[3]>=0?'▲':'▼'} ${Math.abs(x[3])}%</span><span class="dim">vs the ${rangeNights()>1?'period before':'night before'}</span>`});
+  $('#dSub').textContent=live?'Here is how tonight is going. Everything below updates live.':`Showing ${rangeLabel().toLowerCase()} · ${L.length} orders · ${rs(rev)}`;
+  $$('#rng button').forEach(b=>b.classList.toggle('on',b.dataset.r===dashRange.id));
+
+  /* the live strip only makes sense for tonight */
+  const pp=$('#pipe');pp.hidden=!live;
+  if(live){
+   const PL=[['new','Awaiting approval','var(--warn)','orders','Tap to approve'],['kitchen','In kitchen','var(--blue)','orders','Queued + cooking'],['ready','Ready for rider','var(--vio)','riders','Assign a rider'],['out','Out for delivery','var(--cyan)','riders','On the road'],['delivered','Delivered tonight','var(--ok)','orders','Completed']];
+   const pc={new:byStatus('new').length,kitchen:byStatus('approved').length+byStatus('preparing').length,ready:byStatus('ready').length,out:byStatus('out').length,delivered:tonight().filter(o=>o.status==='delivered').length};
+   if(!pp.children.length){pp.innerHTML=PL.map(x=>`<button data-go="${x[3]}" data-st="${x[0]}"><span class="pl"><span class="pd" style="background:${x[2]}"></span>${x[1]}</span><span class="pv num" id="pv-${x[0]}">0</span><span class="ps">${x[4]}</span></button>`).join('');$$('button',pp).forEach(b=>b.onclick=()=>go(b.dataset.go,{tab:b.dataset.st}))}
+   PL.forEach(x=>countUp($('#pv-'+x[0]),pc[x[0]]));
+  }
+
+  /* chart */
+  const hourly_=rangeNights()<=1;
+  $('#chTtl').textContent=hourly_?'Orders by hour':'Orders by night';
+  $('#chLeg').innerHTML=hourly_?`<span><i style="background:var(--or)"></i>${rangeLabel()}</span><span><i style="background:var(--cream);height:2px;border-radius:0"></i>Same night last week</span>`:`<span><i style="background:var(--or)"></i>Orders per night</span>`;
+  const hc=$('#hc');hc.innerHTML=barChart();
+  hc.onclick=e=>{const b=e.target.closest('[data-b]');if(b)barDrill(+b.dataset.b)};
+
+  /* riders */
   const rs_=[...S.riders].sort((a,b)=>({free:0,busy:1,off:2}[a.status]-{free:0,busy:1,off:2}[b.status]));
-  $('#dRiders').innerHTML=rs_.map(r=>`<div><div class="av sm ${avc(r.name)}">${ini(r.name)}</div><div class="grow"><b>${esc(r.name)}</b><div class="dim" style="font-size:12px">${r.today} delivered · ${rs(r.cash)} to hand in</div></div><span class="tag ${r.status==='free'?'t-delivered':r.status==='busy'?'t-out':''}">${r.status==='free'?'Free':r.status==='busy'?r.orders.length+' on road':'Off'}</span></div>`).join('');
-  // recent
-  const rec=S.orders.filter(o=>o.t.placed>=SHIFT0).slice(-8).reverse();
-  $('#dRecent').innerHTML=rec.map(o=>`<tr data-k="r${o.id}" data-o="${o.id}"><td class="mono" style="color:var(--or2)">${o.id}</td><td>${esc(custName(o))}</td><td class="muted">${esc(o.area)}</td><td class="muted">${o.items.reduce((a,x)=>a+x.qty,0)} items</td><td class="num"><b>${rs(o.total)}</b></td><td>${stTag(o.status)}</td><td class="dim">${t12(o.t.placed)}</td></tr>`).join('');
-  $('#dRecentM').innerHTML=rec.map(o=>`<button data-k="m${o.id}" data-o="${o.id}"><div class="grow"><div class="row"><span class="mono" style="color:var(--or2)">${o.id}</span><b class="ell">${esc(custName(o))}</b></div><div class="dim" style="font-size:12px">${esc(o.area)} · ${t12(o.t.placed)}</div></div><div style="text-align:right;display:grid;gap:4px;justify-items:end"><b class="num">${rs(o.total)}</b>${stTag(o.status)}</div></button>`).join('');
-  $$('[data-o]',el).forEach(r=>r.onclick=()=>orderDrawer(r.dataset.o));
-  // chats
-  const ac=S.chats.filter(c=>c.state==='ai'||c.state==='human').slice(0,5);
-  $('#dChats').innerHTML=ac.length?ac.map(c=>{const cu=S.cmap[c.cid];const lm=c.msgs.at(-1);return `<button data-k="dc${c.id}" data-ch="${c.id}"><div class="av sm ${avc(cu.name)}">${ini(cu.name)}</div><div class="grow"><div class="row"><b class="ell">${esc(cu.name)}</b><span class="tag ${c.state==='human'?'t-human':'t-ai'}" style="margin-left:auto">${c.state==='human'?'Needs human':'AI active'}</span></div><div class="dim ell" style="font-size:12px">${c.typing?'AI is typing…':esc(lm?lm.text.split('\n')[0].replace(/\*/g,''):'')}</div></div></button>`}).join(''):`<div class="empty">${ic('chat')}No active chats. New WhatsApp messages appear here as they arrive.</div>`;
-  $$('[data-ch]',el).forEach(b=>b.onclick=()=>go('chats',{chat:b.dataset.ch}));
-  // top items
-  const cnt={};tn.forEach(o=>o.items.forEach(it=>{if(MM[it.mid].cat!=='drink')cnt[it.mid]=(cnt[it.mid]||0)+it.qty}));const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,5);const mx=top[0]?.[1]||1;
-  $('#dTop').innerHTML=top.map(([m,n])=>`<div class="br"><span class="row ell">${foodIc(m,'sm')}<span class="ell">${esc(MM[m].name)}</span></span><b class="num">${n}</b><span class="tr"><i style="width:${n/mx*100}%;animation:${first?'':'none'}"></i></span></div>`).join('');
-  const ac2={};tn.forEach(o=>ac2[o.area]=(ac2[o.area]||0)+1);const ta=Object.entries(ac2).sort((a,b)=>b[1]-a[1]).slice(0,5);const mx2=ta[0]?.[1]||1;
-  $('#dAreas').innerHTML=ta.map(([a,n])=>`<div class="br"><span class="ell">${esc(a)} <span class="dim">· ${rs(feeOf(a))} fee</span></span><b class="num">${n}</b><span class="tr"><i style="width:${n/mx2*100}%;animation:${first?'':'none'}"></i></span></div>`).join('');
-  const tl=S.takeaway.filter(t=>t.t>=SHIFT0).slice(-5).reverse();
-  $('#dTake').innerHTML=tl.map(t=>`<div data-k="tk${t.t}"><div class="av sm c2">${ini(t.name)}</div><div class="grow"><b class="ell">${esc(t.name)}</b><div class="dim" style="font-size:12px">${t.phone}</div></div><span class="dim" style="font-size:12px">${t12(t.t)}</span></div>`).join('');
+  $('#dRiders').innerHTML=rs_.slice(0,6).map(r=>`<button data-rg="${r.id}"><div class="av sm ${avc(r.name)}">${ini(r.name)}</div><div class="grow"><b>${esc(r.name)}</b><div class="dim" style="font-size:12px">${r.today} delivered · ${rs(toTake(r))} to take</div></div><span class="tag ${r.status==='free'?'t-delivered':r.status==='busy'?'t-out':''}">${r.status==='free'?'Free':r.status==='busy'?r.orders.length+' on road':'Off'}</span></button>`).join('');
+  $$('[data-rg]',el).forEach(b=>b.onclick=()=>riderBreakdown(S.riders.find(x=>x.id===b.dataset.rg),'take'));
+
+  this.pane();
   settle(el);
  }
 };
@@ -1004,6 +1238,7 @@ function orderCard(o,col){
 }
 PAGES.orders={
  render(el,opts){
+  if(isRider())return riderOrders(el);
   if(opts.tab)ordTab=opts.tab==='kitchen'?'kitchen':opts.tab;
   el.innerHTML=`<div class="toolbar"><div class="inp" style="height:40px;flex:1;max-width:340px;min-width:200px">${ic('search')}<input id="oq" placeholder="Filter by order ID, customer or area" aria-label="Filter orders" value="${esc(ordQ)}"></div>
    <span class="dim hide-m" style="font-size:12.5px">Flow: AI places order → you approve → kitchen cooks → rider delivers</span>
@@ -1019,6 +1254,7 @@ PAGES.orders={
  },
  open(opts){if(opts.order)orderDrawer(opts.order);if(opts.tab){ordTab=opts.tab;this.refresh()}},
  refresh(){
+  if(isRider()){const el=$('#pg');if(el)riderOrders(el,true);return}
   if(!$('#board'))return;
   COLS.forEach(([id])=>{const L=colOrders(id);$('#n-'+id).textContent=L.length;const b=$('#cb-'+id);keepScroll(b,()=>{b.innerHTML=L.length?L.map(o=>orderCard(o,id)).join(''):`<div class="empty">${ic(id==='new'?'check':'hourglass')}${{new:'All caught up. New AI orders land here for approval.',kitchen:'Kitchen is clear.',ready:'Nothing waiting for a rider.',out:'No rider on the road.',delivered:'No deliveries yet tonight.'}[id]}</div>`});
     $(`.col[data-col="${id}"]`).classList.toggle('mon',ordTab===id)});
@@ -1050,9 +1286,9 @@ function receiveCash(r){
 function riderBreakdown(r,kind){
   if(!r)return;
   const V={
-   take:{t:'To take',sub:'Cash-on-delivery orders '+r.name.split(' ')[0]+' is out with. He collects this at the door.',
-         rows:riderOut(r).filter(o=>o.pay==='COD'),tot:toTake(r),icon:'bike',
-         empty:'Nothing on the road right now.'},
+   take:{t:'To take',sub:'Everything '+r.name.split(' ')[0]+' owes the shop: cash still at the customer, plus cash already in his pocket. Only Receive clears it.',
+         rows:[...riderOut(r).filter(o=>o.pay==='COD'),...riderHolding(r)],tot:toTake(r),icon:'bike',
+         empty:'Nothing owed right now.'},
    hold:{t:'Collected',sub:'Cash '+r.name.split(' ')[0]+' has taken from customers since his last hand-in.',
          rows:riderHolding(r),tot:r.cash,icon:'cash',
          empty:'Nothing collected since the last hand-in.'},
@@ -1335,12 +1571,11 @@ function evexaModal(){
 }
 
 /* staff roles and what each side of the CRM a user can be given */
-const PERMS=[['dash','Dashboard','dash'],['chats','Live Conversations','chat'],['orders','Delivery Orders','bike'],['riders','Riders','helmet'],['bulk','Bulk Message','send'],['menu','Menu Management','cloche'],
+const PERMS=[['dash','Dashboard','dash'],['chats','Live Conversations','chat'],['orders','Delivery Orders','bike'],['kitchen','Kitchen','chef'],['riders','Riders','helmet'],['bulk','Bulk Message','send'],['menu','Menu Management','cloche'],
  ['customers','Customers','users'],['reports','Payments & Reports','chart'],['promos','Promotions & Offers','tag'],['settings','Settings','gear']];
 const ROLES={
  admin:{name:'Admin',ic:'crown',note:'The whole CRM, settings included',perms:PERMS.map(p=>p[0])},
- kitchen:{name:'Kitchen',ic:'chef',note:'The order board and the menu',perms:['orders','menu']},
- rider:{name:'Rider',ic:'helmet',note:'Only his own deliveries',perms:['dash']}
+ rider:{name:'Rider',ic:'helmet',note:'Only his own deliveries',perms:['dash','orders']}
 };
 const permName=id=>(PERMS.find(p=>p[0]===id)||[,'—'])[1];
 /* a user with no explicit tick list simply gets whatever the role gives */
@@ -1349,8 +1584,9 @@ const userPerms=u=>u.perms&&u.perms.length?u.perms:(ROLES[u.role]||ROLES.admin).
 /* Add a user, reset a password, or change what someone can reach.
    mode: null = add, 'pass' = password only, 'access' = role + sections */
 function userForm(u,after,mode){
-  let role=u?(u.role||'admin'):'kitchen';
+  let role=u?(u.role||'admin'):'admin';
   let riderId=u?(u.riderId||''):'';
+  const canAcc=u?canAccept(u):true;
   let picked=u?userPerms(u).slice():ROLES[role].perms.slice();
   const permsHTML=()=>PERMS.map(([id,label,icn])=>`<label class="${picked.includes(id)?'on':''}" data-pm="${id}"><input type="checkbox" ${picked.includes(id)?'checked':''}>${ic(icn,'sm')}<span class="ell">${label}</span></label>`).join('');
   const rolesHTML=()=>Object.entries(ROLES).map(([id,r])=>`<button class="${role===id?'on':''}" data-rl="${id}">${ic(r.ic,'lg')}<b>${r.name}</b><small>${esc(r.note)}</small></button>`).join('');
@@ -1362,6 +1598,10 @@ function userForm(u,after,mode){
       <label class="field" style="margin-top:12px"><span>Login ID</span><input class="tx" id="uL" placeholder="kashif"></label>`}
     ${mode==='access'?'':`<label class="field" style="margin-top:12px"><span>${mode==='pass'?'New password':'Password'}</span><input class="tx" id="uP" placeholder="At least 6 characters"></label>`}
     ${mode==='pass'?'':`<div class="field" style="margin-top:16px"><span>Who is this user?</span><div class="roleseg" id="uRole">${rolesHTML()}</div></div>
+      <div class="field" id="uAccWrap" style="margin-top:16px;${role==='rider'?'':'display:none'}"><span>Rider options</span>
+       <label class="perms" style="grid-template-columns:1fr"><span class="${canAcc?'on':''}" id="uAccRow" style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:11px;background:var(--panel2);border:1px solid var(--line);cursor:pointer">
+        <input type="checkbox" id="uAcc" ${canAcc?'checked':''} style="width:17px;height:17px;accent-color:var(--or)">
+        ${ic('check','sm')}<span class="grow">Must accept an order before riding</span></span></label></div>
       <div class="field" id="uRiderWrap" style="margin-top:16px;${role==='rider'?'':'display:none'}"><span>Which rider on the board is this?</span>
        <select class="tx" id="uRider">${S.riders.map(r=>`<option value="${r.id}" ${riderId===r.id?'selected':''}>${esc(r.name)} · ${esc(r.bike)}</option>`).join('')}</select>
        <small class="dim" style="font-size:11.5px">He signs in and sees only this rider's drops and cash.</small></div>
@@ -1372,6 +1612,7 @@ function userForm(u,after,mode){
    const paint=()=>{const box=$('#uPerms',m);if(box){box.innerHTML=permsHTML();wirePerms()}
      const rb=$('#uRole',m);if(rb)$$('button',rb).forEach(b=>b.classList.toggle('on',b.dataset.rl===role));
      const rw=$('#uRiderWrap',m);if(rw)rw.style.display=role==='rider'?'':'none';
+     const aw=$('#uAccWrap',m);if(aw)aw.style.display=role==='rider'?'':'none';
      count()};
    const wirePerms=()=>$$('[data-pm]',m).forEach(l=>l.onclick=e=>{e.preventDefault();const id=l.dataset.pm;
      picked=picked.includes(id)?picked.filter(x=>x!==id):[...picked,id];
@@ -1385,6 +1626,7 @@ function userForm(u,after,mode){
        if(!picked.length){toast('Tick at least one section','Otherwise they can sign in and see nothing',{icon:'alert',tone:'bad'});return}
        u.role=role;u.perms=picked.slice();
        u.riderId=role==='rider'?(($('#uRider',m)||{}).value||riderId||'r0'):'';
+       u.can={accept:role==='rider'&&!!(($('#uAcc',m)||{}).checked)};
        toast('Access saved',`${u.name} · ${ROLES[role].name} · ${picked.length} of ${PERMS.length} sections`,{icon:'shield',tone:'ok'})}
      else{
        const n=$('#uN',m).value.trim();
@@ -1393,7 +1635,8 @@ function userForm(u,after,mode){
        const login=($('#uL',m).value.trim()||n.split(' ')[0]).toLowerCase();
        if(S.users.some(x=>x.login===login)){toast('That login ID is taken','Pick a different one',{icon:'alert',tone:'bad'});return}
        S.users.push({id:'u'+Date.now(),name:n,login,pass:pw||'changeme',on:true,role,perms:picked.slice(),
-         riderId:role==='rider'?(($('#uRider',m)||{}).value||'r0'):''});
+         riderId:role==='rider'?(($('#uRider',m)||{}).value||'r0'):'',
+         can:{accept:role==='rider'&&!!(($('#uAcc',m)||{}).checked)}});
        toast('User added',`${n} · ${ROLES[role].name} · ${picked.length} of ${PERMS.length} sections`,{icon:'user',tone:'ok'})}
      closeModal();after&&after()};
    setTimeout(()=>{const f=$('#uN',m)||$('#uP',m);f&&f.focus()},120);
@@ -1521,6 +1764,7 @@ PAGES.settings={
 
 /* ================= COMING SOON ================= */
 const soon=(title,lines)=>({render(el){el.innerHTML=`<div class="soon-wrap"><div class="soon-bg">${'<div></div>'.repeat(8)}</div><div class="soon-c"><span class="badge">Coming soon</span><h2>${title}</h2><p>We're cooking this one. Here is what it will do:</p><ul>${lines.map(l=>`<li>${ic('check','sm')}${l}</li>`).join('')}</ul><button class="btn" id="soonBack">${ic('back','sm')}Back to dashboard</button></div></div>`;$('#soonBack').onclick=()=>go('dash')}});
+PAGES.kitchen=soon('Kitchen Screen',['A big ticket screen for the cooks, meant for a tablet on the wall','Tickets appear the moment you approve an order, oldest first','Tap an item as it is plated so nothing gets missed','A timer on every ticket that turns amber, then red','One tap marks the order ready and tells the counter to send a rider']);
 PAGES.reports=soon('Payments & Reports',['Cash, EasyPaisa, JazzCash and bank transfer totals by night','Rider cash hand-in history, and what each rider still owes','Works out every rider&rsquo;s daily wages automatically from the deliveries he ran','Best sellers, peak hours and area reports','Download reports as PDF or Excel']);
 PAGES.promos=soon('Promotions & Offers',['Create deals like the Family Platter','Discount codes the AI agent understands','Schedule offers for weekends and Eid','See how many orders each deal brought in']);
 

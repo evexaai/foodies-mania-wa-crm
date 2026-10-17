@@ -884,3 +884,30 @@ html[data-side="mini"] .side-logo .brand img{width:52px;height:52px}
   .rdrop .r3 .btn{margin-left:0;width:100%}
   .kpi.rk{flex-direction:row;align-items:center}
 }
+
+/* ---------- dashboard: period picker, tabs, tappable tiles ---------- */
+.rng{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--panel);border:1px solid var(--line);
+  flex-wrap:wrap;max-width:100%}
+.rng button{height:30px;padding:0 12px;border-radius:9px;font-size:12.5px;font-weight:600;color:var(--mut);
+  white-space:nowrap;transition:background .2s,color .2s}
+.rng button:hover{color:var(--fg)}
+.rng button.on{background:var(--or);color:var(--onor)}
+.kpi.tap{cursor:pointer;text-align:left;width:100%}
+.kpi.tap:hover{border-color:var(--line2)}
+.kpi.tap:active{transform:scale(.99)}
+.dtabs{display:flex;gap:4px;overflow-x:auto;padding:3px;border-radius:12px;background:var(--panel2);
+  border:1px solid var(--line);max-width:100%}
+.dtabs button{display:flex;align-items:center;gap:7px;height:32px;padding:0 13px;border-radius:9px;
+  font-size:13px;font-weight:600;color:var(--mut);white-space:nowrap;transition:background .2s,color .2s}
+.dtabs button.on{background:var(--or);color:var(--onor)}
+.dtabs button.on .i{color:var(--onor)}
+.dtabs .i{color:var(--or2)}
+#dRiders button{display:flex;align-items:center;gap:10px;width:100%;text-align:left}
+.chart .cb{cursor:pointer;transition:opacity .15s}
+.chart .cb:hover{opacity:1!important;filter:brightness(1.12)}
+@media (max-width:720px){
+  .hello{gap:10px}
+  .rng{width:100%;overflow-x:auto;flex-wrap:nowrap;justify-content:flex-start}
+  .dtabs button span{display:none}
+  .dtabs button{padding:0 14px}
+}
