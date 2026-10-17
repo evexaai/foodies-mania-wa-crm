@@ -97,10 +97,10 @@ const phoneNo=()=>'+92 3'+ri(0,4)+ri(0,9)+' '+String(ri(1000000,9999999));
 const S={orders:[],omap:{},customers:[],cmap:{},riders:[],chats:[],notifs:[],campaigns:[],takeaway:[],seq:4210,
  users:[{id:'u1',name:'Shahnawaz Damani',login:'shahnawaz',pass:'fm@2025',on:true,role:'admin',perms:null},
   {id:'u2',name:'Kashif Ali',login:'kashif',pass:'counter12',on:true,role:'admin',perms:['dash','chats','orders','riders','customers','bulk']},
-  {id:'u4',name:'Hamza Qureshi',login:'hamza',pass:'bike#44',on:true,role:'rider',riderId:'r0',perms:null,can:{accept:true}},
+  {id:'u4',name:'Hamza Qureshi',login:'hamza',pass:'bike#44',on:true,role:'rider',riderId:'r0',perms:null},
   {id:'u5',name:'Nadia Siddiqui',login:'nadia',pass:'desk2025',on:true,role:'admin',perms:['dash','chats','orders','customers']}],
  set:{wa:true,waNo:'+92 335 2115129',takeNo:'0335-2115129',biz:'Foodies Mania',addr:'Shop 1, R12, Block 8, Federal B Area, Alyabad, near Tabba Heart Hospital, Karachi',phone:'021-37226172',open:'15:00',close:'05:00',
-   voice:true,pop:true,lang:'en',vol:.9,voiceName:'',ev:{newChat:true,newOrder:true,needsHuman:true,kitchenReady:true,assigned:false,delivered:true,late:true,takeaway:false,wa:true},sim:true,autoKitchen:false,
+   voice:true,pop:true,lang:'en',vol:.9,voiceName:'',ev:{newChat:true,newOrder:true,needsHuman:true,kitchenReady:true,assigned:true,delivered:true,late:true,takeaway:false,wa:true},sim:true,autoKitchen:false,
    /* what the AI sends when a customer picks Takeaway. {number} is swapped for the takeaway number. */
    takeMsg:'Takeaway ke liye please humare takeaway number par WhatsApp/call karein:\n📞 {number}\nWo aap ka order ready rakhenge. Shukriya!'}};
 
@@ -158,7 +158,7 @@ const RIDERS=[['Hamza Qureshi','KHB-4821'],['Saad Ali','KKT-1290'],['Faizan Ahme
  ['Rayyan Khan','KJA-9012'],['Daniyal Shaikh','KHS-5547'],['Arham Baig','KHP-2208'],['Owais Memon','KHE-6619'],
  ['Shayan Rizvi','KJB-4402'],['Sufiyan Ansari','KHT-8873'],['Moiz Abbasi','KHL-1157']];
 /* cash = still to hand in to Foodies Mania, collected = everything he took tonight */
-RIDERS.forEach((r,i)=>S.riders.push({id:'r'+i,name:r[0],bike:r[1],phone:phoneNo(),status:i>=9?'off':'free',cash:0,collected:0,today:0,orders:[],settledAt:SHIFT0,earn:0,since:SHIFT0-ri(30,500)*DAY}));
+RIDERS.forEach((r,i)=>S.riders.push({id:'r'+i,name:r[0],bike:r[1],phone:phoneNo(),status:i>=9?'off':'free',cash:0,today:0,orders:[],settledAt:SHIFT0,earn:0,since:SHIFT0-ri(30,500)*DAY}));
 
 /* history: 60 nights */
 (function genHistory(){
@@ -207,12 +207,17 @@ RIDERS.forEach((r,i)=>S.riders.push({id:'r'+i,name:r[0],bike:r[1],phone:phoneNo(
     ['approved','preparing','ready','out','delivered'].forEach(key=>{if(T[key]&&T[key]>nowT-30000)T[key]=nowT-ri(1,3)*MIN});
     addOrder(o);
     if(o.status==='delivered'){applyDelivered(o);const r=S.riders.find(x=>x.id===o.rider);r.today++;r.earn+=60;
-      if(o.pay==='COD'){r.collected+=o.total;if(T.delivered>SHIFT0+5*HOUR)r.cash+=o.total}}
+      /* anything collected after his last hand-in is still in his pocket */
+      if(o.pay==='COD'&&T.delivered>SHIFT0+5*HOUR)r.cash+=o.total}
   });
   // riders currently out
   const outs=S.orders.filter(o=>o.status==='out');
   const busy=['r0','r2','r4'];
-  outs.forEach((o,i)=>{o.rider=busy[i%busy.length];o.accepted=false;const r=S.riders.find(x=>x.id===o.rider);r.orders.push(o.id);r.status='busy';o.dueAt=Date.now()+(60+i*35)*1000});
+  outs.forEach((o,i)=>{o.rider=busy[i%busy.length];const r=S.riders.find(x=>x.id===o.rider);r.orders.push(o.id);r.status='busy';o.dueAt=Date.now()+(60+i*35)*1000});
+  /* make sure the rider demo always has cash moving: the signed-in rider keeps
+     at least one cash-on-delivery drop on his bike */
+  const own=outs.filter(o=>o.rider==='r0');
+  if(own.length&&!own.some(o=>o.pay==='COD')){own[0].pay='COD';own[0].paid=false}
   S.riders.forEach(r=>r.settledAt=SHIFT0+5*HOUR);
   // takeaway shares tonight
   for(let i=0;i<19;i++){const c=pick(S.customers);S.takeaway.push({name:c.name,phone:c.phone,t:SHIFT0+ri(10,460)*MIN})}
@@ -390,15 +395,15 @@ const freeRiders=()=>S.riders.filter(r=>r.status!=='off').sort((a,b)=>a.orders.l
    collected= COD cash in his pocket since his last hand-in
    delivered= orders he finished tonight                                        */
 const riderOut=r=>r.orders.map(id=>S.omap[id]).filter(Boolean);
-const onRoad=r=>riderOut(r).filter(o=>o.pay==='COD').reduce((a,o)=>a+o.total,0);
-/* To take = cash still at the customer PLUS cash already in his pocket, so
-   marking a drop delivered moves money between the two without changing this
-   total. Only handing it in at the counter brings it down. */
-const toTake=r=>onRoad(r)+r.cash;
+/* To take = cash-on-delivery orders he is out with, still at the customer.
+   To give = what he has collected and not yet handed in at the counter.
+   Marking a drop delivered moves the money from the first into the second. */
+const toTake=r=>riderOut(r).filter(o=>o.pay==='COD').reduce((a,o)=>a+o.total,0);
+const toGive=r=>r.cash;
 const riderDone=r=>S.orders.filter(o=>o.rider===r.id&&o.status==='delivered'&&o.t.delivered>=SHIFT0).sort((a,b)=>b.t.delivered-a.t.delivered);
 const riderHolding=r=>riderDone(r).filter(o=>o.pay==='COD'&&o.t.delivered>r.settledAt);
-const roadCash=()=>S.riders.reduce((a,r)=>a+toTake(r),0);
-const allOnRoad=()=>S.riders.reduce((a,r)=>a+onRoad(r),0);
+const roadCash=()=>S.riders.reduce((a,r)=>a+toTake(r),0);   /* still at customers */
+const heldCash=()=>S.riders.reduce((a,r)=>a+r.cash,0);       /* in riders' pockets */
 
 /* ================= actions (the glue that interconnects every page) ================= */
 const A={
@@ -413,19 +418,26 @@ const A={
  start(id){const o=S.omap[id];if(!o||o.status!=='approved')return;o.status='preparing';o.t.preparing=now();changed()},
  ready(id){const o=S.omap[id];if(!o||!['approved','preparing'].includes(o.status))return;if(!o.t.preparing)o.t.preparing=now();o.status='ready';o.t.ready=now();
    notify('kitchenReady',`${o.id} is ready`,`${custName(o)} · ${o.area} · assign a rider`,{page:'riders'},{icon:'chef',tone:'vio'})},
- assign(id,rid){const o=S.omap[id],r=S.riders.find(x=>x.id===rid);if(!o||!r)return;o.status='out';o.t.out=now();o.rider=rid;o.accepted=false;r.orders.push(id);r.status='busy';
+ assign(id,rid){const o=S.omap[id],r=S.riders.find(x=>x.id===rid);if(!o||!r)return;o.status='out';o.t.out=now();o.rider=rid;r.orders.push(id);r.status='busy';
    o.dueAt=Date.now()+ri(70,120)*1000;
    const ch=S.chats.find(c=>c.orderId===id);if(ch)pushMsg(ch,'ai',`Aap ka order raste mein hai! Rider ${r.name.split(' ')[0]} (${r.phone}) aap tak pohoch raha hai.`);
-   toast(`${r.name.split(' ')[0]} is on the way`,`${o.id} → ${o.area}`,{icon:'bike',tone:'ok'});Voice.say('assigned');changed()},
+   /* if the rider himself is the one signed in, tell him — that is his job sheet */
+   if(isRider()&&me().riderId===rid)
+     notify('assigned',`New delivery · ${o.id}`,`${custName(o)} · ${o.area} · ${o.pay==='COD'?'collect '+rs(o.total):'already paid'}`,{page:'orders'},{icon:'bike',tone:'ok'});
+   else toast(`${r.name.split(' ')[0]} is on the way`,`${o.id} → ${o.area}`,{icon:'bike',tone:'ok'});
+   Voice.say('assigned');changed()},
  delivered(id){const o=S.omap[id];if(!o||o.status!=='out')return;o.status='delivered';o.t.delivered=now();if(o.pay==='COD')o.paid=true;
-   const r=S.riders.find(x=>x.id===o.rider);if(r){r.orders=r.orders.filter(x=>x!==id);r.today++;r.earn+=60;if(o.pay==='COD'){r.cash+=o.total;r.collected+=o.total}if(!r.orders.length&&r.status==='busy')r.status='free'}
+   const r=S.riders.find(x=>x.id===o.rider);if(r){r.orders=r.orders.filter(x=>x!==id);r.today++;r.earn+=60;if(o.pay==='COD')r.cash+=o.total;if(!r.orders.length&&r.status==='busy')r.status='free'}
    applyDelivered(o);
    const ch=S.chats.find(c=>c.orderId===id);if(ch){pushMsg(ch,'ai','Order deliver ho gaya! Foodies Mania choose karne ka shukriya. Have some more! 🧡');ch.state='done'}
    notify('delivered',`${o.id} delivered`,`${r?r.name.split(' ')[0]:'Rider'} · ${custName(o)} · ${rs(o.total)}${o.pay==='COD'?' cash collected':''}`,{page:'orders',order:id},{icon:'check',tone:'ok'})},
  markPaid(id){const o=S.omap[id];o.paid=true;toast('Payment marked received',`${o.id} · ${payName[o.pay]} · ${rs(o.total)}`,{icon:'wallet',tone:'ok'});changed()},
  /* the owner types in what he actually counted, so a short hand-in stays on the books */
  settle(rid,amt){const r=S.riders.find(x=>x.id===rid);const got=Math.max(0,Math.min(r.cash,Math.round(amt)));
-   r.cash-=got;r.settledAt=now();
+   r.cash-=got;
+   /* keep the list of collected orders until he is square, so the number and
+      the breakdown behind it always agree */
+   if(r.cash===0)r.settledAt=now();
    toast('Cash received',r.cash?`${rs(got)} from ${r.name} · ${rs(r.cash)} still to hand in`:`${rs(got)} from ${r.name} · all settled`,{icon:'cash',tone:r.cash?'':'ok'});changed()},
  duty(rid){const r=S.riders.find(x=>x.id===rid);if(r.status==='off')r.status=r.orders.length?'busy':'free';else if(!r.orders.length)r.status='off';else{toast('Rider still has orders','Finish deliveries before going off duty',{icon:'alert',tone:'bad'});return}changed()},
  toggleItem(mid){const m=MM[mid];m.avail=!m.avail;toast(m.avail?`${m.name} is back on`:`${m.name} switched off`,m.avail?'The AI agent will offer it again':'The AI agent will tell customers it is unavailable',{icon:m.avail?'check':'block',tone:m.avail?'ok':'bad'});changed()},
@@ -594,6 +606,14 @@ function simStart(){
      The cap is only there to stop the inbox running away. */
   const loop=()=>{simTimer=setTimeout(()=>{if(S.set.sim&&S.set.wa){const active=S.chats.filter(c=>c.state==='ai').length;if(active<12)newChat()}loop()},ri(24000,38000))};
   setTimeout(loop,26000);
+  /* while a rider is the one signed in, the counter hands him a ready order now
+     and then, so his screen behaves like a real shift */
+  setInterval(()=>{
+    if(!S.set.sim||!isRider())return;
+    const r=myRider();if(!r||r.status==='off'||r.orders.length>=3)return;
+    const ready=byStatus('ready')[0];if(!ready)return;
+    A.assign(ready.id,r.id);
+  },38000);
   setInterval(tick,1000);
 }
 let lateWarned=new Set(),lastMinute=0;
@@ -779,10 +799,6 @@ function riderPicker(oid,after){
    ${off.length?`<div class="rp-h">Off duty</div>${off.map(row).join('')}`:''}</div>`,m=>$$('[data-r]',m).forEach(b=>b.onclick=()=>{A.assign(oid,b.dataset.r);closeModal();after&&after()}));
 }
 
-const canAccept=u=>!!(u&&u.can&&u.can.accept);
-const isAccepted=o=>o.accepted!==false||!canAccept(me());
-A.accept=function(id){const o=S.omap[id];if(!o||o.status!=='out')return;o.accepted=true;o.t.accepted=now();
-  toast('Order accepted',o.id+' · '+custName(o)+' · '+o.area,{icon:'check',tone:'ok'});changed()};
 A.riderNote=function(id,txt){const o=S.omap[id];if(!o)return;o.riderNote=txt;
   toast('Note saved',o.id+' · the counter can see this too',{icon:'note',tone:'ok'});changed()};
 
@@ -797,27 +813,25 @@ function riderHome(el,keep){
    <div class="hello"><div><h2>Salam, ${esc(r.name.split(' ')[0])}</h2><p>${out.length?`You have ${out.length} order${out.length===1?'':'s'} on the bike right now.`:'Nothing on the bike. The counter will send you the next one.'}</p></div>
     <div class="shift">${ic(r.status==='off'?'pause':'bike','sm')}<span>${r.status==='off'?'Off duty':r.status==='busy'?'On delivery':'Free — waiting for an order'}</span></div></div>
    <div class="grid g3 st" style="margin-top:16px">
-    <button class="card kpi rk" data-br="take:${r.id}"><div class="ico">${ic('cash')}</div><div><div class="lbl">To take</div><div class="val num">${rs(toTake(r))}</div><div class="dl"><span class="dim">Owed to the shop in total</span></div></div></button>
-    <button class="card kpi rk" data-br="hold:${r.id}"><div class="ico">${ic('wallet')}</div><div><div class="lbl">To give</div><div class="val num">${rs(r.cash)}</div><div class="dl"><span class="dim">Hand this in at the counter</span></div></div></button>
+    <button class="card kpi rk" data-br="take:${r.id}"><div class="ico">${ic('cash')}</div><div><div class="lbl">To take</div><div class="val num">${rs(toTake(r))}</div><div class="dl"><span class="dim">Still to collect at the door</span></div></div></button>
+    <button class="card kpi rk" data-br="give:${r.id}"><div class="ico">${ic('wallet')}</div><div><div class="lbl">To give</div><div class="val num">${rs(toGive(r))}</div><div class="dl"><span class="dim">Hand this in at the counter</span></div></div></button>
     <button class="card kpi rk" data-br="done:${r.id}"><div class="ico">${ic('check')}</div><div><div class="lbl">Delivered tonight</div><div class="val num">${r.today}</div><div class="dl"><span class="dim">${rs(r.earn)} earned</span></div></div></button>
    </div>
    <div class="card" style="margin-top:16px"><div class="card-h"><h3>${ic('bike')}On the bike</h3><span class="dim sp" style="font-size:12.5px">Oldest first</span></div>
     <div class="rdrops">${out.length?out.sort((a,b)=>a.t.out-b.t.out).map(o=>{const c=S.cmap[o.cid];return `
       <div class="rdrop" data-k="rd${o.id}">
        <div class="r1"><span class="mono" style="color:var(--or2)">${o.id}</span>${payTag(o)}<span class="tm">${ic('clock','sm')}<span data-since="${o.t.out}">${ago(o.t.out)}</span></span></div>
-       <div class="who"><b>${esc(c.name)}</b><a class="btn sm" href="tel:${esc(c.phone.replace(/\s/g,''))}">${ic('phone','sm')}Call</a></div>
+       <div class="who"><b>${esc(c.name)}</b><span class="dim mono" style="font-size:12.5px">${esc(c.phone)}</span></div>
        <div class="addr">${ic('pin','sm')}<span>${esc(o.addr)}</span></div>
        <div class="its dim">${esc(itemsShort(o))}</div>
        ${o.note?`<div class="nt">${ic('note','sm')}${esc(o.note)}</div>`:''}
        <div class="r3"><span class="${o.pay==='COD'?'cod':'dim'}">${o.pay==='COD'?'Collect '+rs(o.total):'Already paid · '+rs(o.total)}</span>
-        ${isAccepted(o)?`<button class="btn ok" data-dl="${o.id}">${ic('check')}Delivered</button>`
-                       :`<button class="btn pri" data-ac="${o.id}">${ic('check')}Accept this order</button>`}</div>
+        <button class="btn ok" data-dl="${o.id}">${ic('check')}Mark delivered</button></div>
       </div>`}).join(''):`<div class="empty">${ic('check')}Nothing on the bike right now.</div>`}</div></div>
    <div class="card" style="margin-top:16px"><div class="card-h"><h3>${ic('clock')}Delivered tonight</h3><span class="dim sp" style="font-size:12.5px">${done.length} order${done.length===1?'':'s'}</span></div>
     <div class="lst">${done.length?done.slice(0,8).map(o=>`<div data-k="rh${o.id}"><span class="food sm">${ic('check','sm')}</span><div class="grow"><b class="ell">${esc(custName(o))}</b><div class="dim" style="font-size:12px">${esc(o.area)} · ${t12(o.t.delivered)}</div></div><b class="num">${rs(o.total)}</b></div>`).join(''):`<div class="empty">${ic('hourglass')}No deliveries yet tonight.</div>`}</div></div>`;
   if(keep){const sc=el.scrollTop;el.innerHTML=html;el.scrollTop=sc}else el.innerHTML=html;
   $$('[data-dl]',el).forEach(b=>b.onclick=()=>A.delivered(b.dataset.dl));
-  $$('[data-ac]',el).forEach(b=>b.onclick=()=>A.accept(b.dataset.ac));
   $$('[data-rd]',el).forEach(b=>b.onclick=()=>riderDrop(b.dataset.rd));
   $$('[data-br]',el).forEach(b=>b.onclick=()=>{const [kind,rid]=b.dataset.br.split(':');riderBreakdown(S.riders.find(x=>x.id===rid),kind)});
   settle(el);
@@ -833,7 +847,7 @@ function riderDrop(id){
     <div class="box" style="display:grid;gap:12px">
      <div class="row" style="gap:12px"><div class="av ${avc(c.name)}">${ini(c.name)}</div>
       <div class="grow"><b style="font-size:16px">${esc(c.name)}</b><div class="dim" style="font-size:12.5px">${c.n} past orders</div></div></div>
-     <div class="row" style="gap:8px"><a class="btn full" href="tel:${esc(c.phone.replace(/\s/g,''))}">${ic('phone','sm')}${esc(c.phone)}</a></div>
+     <div class="row" style="gap:8px">${ic('phone','sm')}<span class="mono" style="font-size:14px">${esc(c.phone)}</span></div>
      <div class="row" style="align-items:flex-start;gap:8px">${ic('pin','sm')}<span style="font-size:14px;line-height:1.5">${esc(o.addr)}</span></div>
     </div>
     <div class="sec"><h4>What to hand over</h4><div class="box" style="display:grid;gap:10px">
@@ -844,14 +858,9 @@ function riderDrop(id){
      <textarea class="tx" id="rdNote" rows="3" placeholder="e.g. gate was locked, customer asked for the next one earlier">${esc(o.riderNote||'')}</textarea>
      <button class="btn full" id="rdSave" style="margin-top:10px">${ic('note')}Save note</button></div>
    </div>
-   <div class="dw-f">${o.status==='out'?(isAccepted(o)
-     ?`<button class="btn ok full" data-a="dl">${ic('check')}Mark delivered</button>`
-     :`<button class="btn pri full" data-a="ac">${ic('check')}Accept this order</button>`):''}</div>`,d=>{
+   <div class="dw-f">${o.status==='out'?`<button class="btn ok full" data-a="dl">${ic('check')}Mark delivered</button>`:''}</div>`,d=>{
     $('#rdSave',d).onclick=()=>A.riderNote(id,$('#rdNote',d).value.trim());
-    $$('[data-a]',d).forEach(b=>b.onclick=()=>{
-      if(b.dataset.a==='dl')A.delivered(id);else A.accept(id);
-      closeDrawer();
-    });
+    $$('[data-a]',d).forEach(b=>b.onclick=()=>{A.delivered(id);closeDrawer()});
   });
 }
 
@@ -868,9 +877,8 @@ function riderOrders(el,keep){
     <button class="chip ${rOrdTab==='active'?'on':''}" data-t="active">On the bike <b>${active.length}</b></button>
     <button class="chip ${rOrdTab==='done'?'on':''}" data-t="done">Delivered <b>${done.length}</b></button></div>
    <div class="rdrops">${L.length?L.map(o=>{const c=S.cmap[o.cid];return `
-     <button class="rdrop" data-rd="${o.id}" data-k="ro${o.id}${o.status}${o.accepted}">
+     <button class="rdrop" data-rd="${o.id}" data-k="ro${o.id}${o.status}">
       <div class="r1"><span class="mono" style="color:var(--or2)">${o.id}</span>${payTag(o)}
-       ${o.status==='out'&&!isAccepted(o)?'<span class="tag t-new">Tap to accept</span>':''}
        <span class="tm">${ic('clock','sm')}${o.status==='delivered'?t12(o.t.delivered):ago(o.t.out)}</span></div>
       <div class="who"><b>${esc(c.name)}</b></div>
       <div class="addr">${ic('pin','sm')}<span>${esc(o.addr)}</span></div>
@@ -1095,7 +1103,7 @@ PAGES.dash={
     kp.innerHTML=K.map((x,i)=>`<${x[6]?'button':'div'} class="card kpi kpi2 ${x[6]?'tap':''}" ${x[6]?`data-k2="${x[6]}"`:''} style="--d:${i}"><div class="kh"><div class="ico">${ic(x[0])}</div><div class="lbl">${x[1]}</div></div><div class="val num" id="kv${i}">0</div><div class="kft"><div class="dl" id="kd${i}"></div>${x[4]?spark(x[4],i===1?'var(--or2)':'var(--or)'):''}</div></${x[6]?'button':'div'}>`).join('');
     $$('[data-k2]',kp).forEach(b=>b.onclick=()=>b.dataset.k2==='take'?takeawayList():go('riders'));
   }
-  const CAP={2:'With riders, not handed in yet',3:'Tap to see who got it'};
+  const CAP={2:'Still at customers · '+rs(heldCash())+' in riders\' pockets',3:'Tap to see who got it'};
   K.forEach((x,i)=>{countUp($('#kv'+i),x[2],x[5]||undefined);
     $('#kd'+i).innerHTML=x[3]==null?`<span class="dim">${CAP[i]||''}</span>`:`<span class="${x[3]>=0?'up':'down'}">${x[3]>=0?'▲':'▼'} ${Math.abs(x[3])}%</span><span class="dim">vs the ${rangeNights()>1?'period before':'night before'}</span>`});
   $('#dSub').textContent=live?'Here is how tonight is going. Everything below updates live.':`Showing ${rangeLabel().toLowerCase()} · ${L.length} orders · ${rs(rev)}`;
@@ -1119,7 +1127,7 @@ PAGES.dash={
 
   /* riders */
   const rs_=[...S.riders].sort((a,b)=>({free:0,busy:1,off:2}[a.status]-{free:0,busy:1,off:2}[b.status]));
-  $('#dRiders').innerHTML=rs_.slice(0,6).map(r=>`<button data-rg="${r.id}"><div class="av sm ${avc(r.name)}">${ini(r.name)}</div><div class="grow"><b>${esc(r.name)}</b><div class="dim" style="font-size:12px">${r.today} delivered · ${rs(toTake(r))} to take</div></div><span class="tag ${r.status==='free'?'t-delivered':r.status==='busy'?'t-out':''}">${r.status==='free'?'Free':r.status==='busy'?r.orders.length+' on road':'Off'}</span></button>`).join('');
+  $('#dRiders').innerHTML=rs_.slice(0,6).map(r=>`<button data-rg="${r.id}"><div class="av sm ${avc(r.name)}">${ini(r.name)}</div><div class="grow"><b>${esc(r.name)}</b><div class="dim" style="font-size:12px">${r.today} delivered · ${rs(toTake(r))} to take · ${rs(toGive(r))} to give</div></div><span class="tag ${r.status==='free'?'t-delivered':r.status==='busy'?'t-out':''}">${r.status==='free'?'Free':r.status==='busy'?r.orders.length+' on road':'Off'}</span></button>`).join('');
   $$('[data-rg]',el).forEach(b=>b.onclick=()=>riderBreakdown(S.riders.find(x=>x.id===b.dataset.rg),'take'));
 
   this.pane();
@@ -1286,27 +1294,33 @@ function receiveCash(r){
 function riderBreakdown(r,kind){
   if(!r)return;
   const V={
-   take:{t:'To take',sub:'Everything '+r.name.split(' ')[0]+' owes the shop: cash still at the customer, plus cash already in his pocket. Only Receive clears it.',
-         rows:[...riderOut(r).filter(o=>o.pay==='COD'),...riderHolding(r)],tot:toTake(r),icon:'bike',
-         empty:'Nothing owed right now.'},
-   hold:{t:'Collected',sub:'Cash '+r.name.split(' ')[0]+' has taken from customers since his last hand-in.',
+   take:{t:'To take',sub:'Cash '+r.name.split(' ')[0]+' still has to collect at the door. It moves to To give the moment he marks the drop delivered.',
+         rows:riderOut(r).filter(o=>o.pay==='COD'),tot:toTake(r),icon:'bike',
+         empty:'Nothing left to collect.'},
+   give:{t:'To give',sub:'Cash '+r.name.split(' ')[0]+' has collected and not yet handed in at the counter.',
          rows:riderHolding(r),tot:r.cash,icon:'cash',
-         empty:'Nothing collected since the last hand-in.'},
+         empty:'Nothing to hand in.'},
    done:{t:'Delivered tonight',sub:'Every order '+r.name.split(' ')[0]+' finished this shift.',
          rows:riderDone(r),tot:null,icon:'check',
          empty:'No deliveries yet tonight.'}
   }[kind];
   if(!V)return;
   const prepaid=kind==='take'?riderOut(r).filter(o=>o.pay!=='COD'):[];
+  const collected=riderHolding(r).reduce((a,o)=>a+o.total,0);
+  const handed=Math.max(0,collected-r.cash);   /* what a part-payment already covered */
   const line=o=>`<button class="brrow" data-o="${o.id}"><span class="mono" style="color:var(--or2)">${o.id}</span>
     <div class="grow"><b class="ell">${esc(custName(o))}</b><div class="dim" style="font-size:12px">${esc(o.area)} · ${o.t.delivered?'delivered '+t12(o.t.delivered):'out '+ago(o.t.out||o.t.placed)}</div></div>
     <div style="text-align:right"><b class="num">${rs(o.total)}</b><div style="font-size:11.5px" class="${o.pay==='COD'?'up':'dim'}">${o.pay==='COD'?'cash':payName[o.pay]}</div></div></button>`;
   modal(`<div class="md-h"><div class="grow"><div class="row" style="gap:10px"><div class="av sm ${avc(r.name)}">${ini(r.name)}</div><h3>${V.t}</h3></div><p>${esc(V.sub)}</p></div><button class="iconbtn" data-close>${ic('x')}</button></div>
    <div class="md-b">${V.rows.length?`<div class="brlist">${V.rows.map(line).join('')}</div>`:`<div class="empty">${ic(V.icon)}${V.empty}</div>`}
     ${V.tot!=null?`<div class="kv tot" style="margin-top:14px"><span style="color:var(--fg)">${V.rows.length} order${V.rows.length===1?'':'s'}</span><span class="num">${rs(V.tot)}</span></div>`:''}
+    ${kind==='give'&&handed>0?`<div class="box" style="margin-top:12px;display:grid;gap:6px;font-size:12.5px">
+      <div class="kv"><span>Collected since his last hand-in</span><b class="num">${rs(collected)}</b></div>
+      <div class="kv"><span>Already handed in</span><b class="num" style="color:var(--ok)">− ${rs(handed)}</b></div>
+      <div class="kv tot"><span style="color:var(--fg)">Still to give</span><span class="num">${rs(r.cash)}</span></div></div>`:''}
     ${prepaid.length?`<div class="dim" style="font-size:12.5px;margin-top:12px">${ic('wallet','sm')} Also carrying ${prepaid.length} already-paid order${prepaid.length===1?'':'s'} — no cash to collect on ${prepaid.length===1?'that one':'those'}.</div>`:''}
    </div>
-   <div class="md-f"><button class="btn ghost" data-close>Close</button>${kind==='hold'&&r.cash?`<button class="btn pri" id="brRec">${ic('cash')}Receive cash</button>`:''}</div>`,m=>{
+   <div class="md-f"><button class="btn ghost" data-close>Close</button>${kind==='give'&&r.cash?`<button class="btn pri" id="brRec">${ic('cash')}Receive cash</button>`:''}</div>`,m=>{
     $$('[data-o]',m).forEach(b=>b.onclick=()=>{closeModal();orderDrawer(b.dataset.o)});
     const rec=$('#brRec',m);if(rec)rec.onclick=()=>{closeModal();receiveCash(r)};
   });
@@ -1316,7 +1330,7 @@ PAGES.riders={
   el.innerHTML=`<div class="grid g4 st" id="rk"></div>
    <div class="card" style="margin-top:16px"><div class="card-h"><h3>${ic('hourglass')}Ready orders waiting for a rider</h3><span class="dim sp" style="font-size:12.5px">Kitchen marked these ready</span></div><div class="waitbar" id="rw"></div></div>
    <div class="toolbar" style="margin-top:20px"><h3 style="font-size:18px">Team tonight</h3><span class="dim" style="font-size:12.5px">Free riders first</span><button class="btn sm" style="margin-left:auto" id="addR">${ic('plus','sm')}Add rider</button></div><div class="rdr" id="rl"></div>`;
-  $('#addR').onclick=()=>modal(`<div class="md-h"><div class="grow"><h3>Add rider</h3><p>Riders appear in the assign list straight away.</p></div><button class="iconbtn" data-close>${ic('x')}</button></div><div class="md-b"><label class="field"><span>Full name</span><input class="tx" id="nrN" placeholder="e.g. Zain Abbasi"></label><label class="field"><span>Phone</span><input class="tx" id="nrP" placeholder="+92 3xx xxxxxxx"></label><label class="field"><span>Bike number</span><input class="tx" id="nrB" placeholder="KHX-0000"></label></div><div class="md-f"><button class="btn ghost" data-close>Cancel</button><button class="btn pri" id="nrOk">Add rider</button></div>`,m=>$('#nrOk',m).onclick=()=>{const n=$('#nrN',m).value.trim()||'New Rider';S.riders.push({id:'r'+S.riders.length+Date.now(),name:n,bike:$('#nrB',m).value||'KHX-0000',phone:$('#nrP',m).value||phoneNo(),status:'free',cash:0,collected:0,today:0,orders:[],settledAt:now(),earn:0,since:now()});closeModal();toast('Rider added',n+' is free and ready',{icon:'helmet',tone:'ok'});changed()});
+  $('#addR').onclick=()=>modal(`<div class="md-h"><div class="grow"><h3>Add rider</h3><p>Riders appear in the assign list straight away.</p></div><button class="iconbtn" data-close>${ic('x')}</button></div><div class="md-b"><label class="field"><span>Full name</span><input class="tx" id="nrN" placeholder="e.g. Zain Abbasi"></label><label class="field"><span>Phone</span><input class="tx" id="nrP" placeholder="+92 3xx xxxxxxx"></label><label class="field"><span>Bike number</span><input class="tx" id="nrB" placeholder="KHX-0000"></label></div><div class="md-f"><button class="btn ghost" data-close>Cancel</button><button class="btn pri" id="nrOk">Add rider</button></div>`,m=>$('#nrOk',m).onclick=()=>{const n=$('#nrN',m).value.trim()||'New Rider';S.riders.push({id:'r'+S.riders.length+Date.now(),name:n,bike:$('#nrB',m).value||'KHX-0000',phone:$('#nrP',m).value||phoneNo(),status:'free',cash:0,today:0,orders:[],settledAt:now(),earn:0,since:now()});closeModal();toast('Rider added',n+' is free and ready',{icon:'helmet',tone:'ok'});changed()});
   this.refresh();
  },
  refresh(){
@@ -1330,7 +1344,7 @@ PAGES.riders={
   const L=[...S.riders].sort((a,b)=>({free:0,busy:1,off:2}[a.status]-{free:0,busy:1,off:2}[b.status])||b.today-a.today);
   $('#rl').innerHTML=L.map(r=>`<div class="card rc ${r.status==='off'?'off':''}" data-k="rc${r.id}${r.status}">
    <div class="r1"><div class="av lg ${avc(r.name)}">${ini(r.name)}</div><div class="grow"><b style="font-size:15.5px">${esc(r.name)}</b><div class="dim" style="font-size:12.5px">${r.phone} · ${r.bike}</div></div><span class="tag ${r.status==='free'?'t-delivered':r.status==='busy'?'t-out':''}">${r.status==='free'?'<span class="dot"></span>Free':r.status==='busy'?'On delivery':'Off duty'}</span></div>
-   <div class="stat"><button data-br="done:${r.id}"><small>Delivered</small><b class="num">${r.today}</b></button><button data-br="take:${r.id}" class="take ${toTake(r)?'live':''}"><small>To take</small><b class="num">${rs(toTake(r))}</b></button><button data-br="hold:${r.id}" class="hand ${r.cash?'':'clear'}"><small>Collected</small><b class="num">${rs(r.cash)}</b></button></div>
+   <div class="stat"><button data-br="done:${r.id}"><small>Delivered</small><b class="num">${r.today}</b></button><button data-br="take:${r.id}" class="take ${toTake(r)?'live':''}"><small>To take</small><b class="num">${rs(toTake(r))}</b></button><button data-br="give:${r.id}" class="hand ${r.cash?'':'clear'}"><small>To give</small><b class="num">${rs(toGive(r))}</b></button></div>
    ${r.orders.length?`<div class="cur">${r.orders.map(id=>{const o=S.omap[id];return `<div>${ic('bike','sm')}<span class="mono" style="color:var(--cyan)">${id}</span><span class="grow ell">${esc(o.area)} · ${rs(o.total)}</span><span class="dim" data-since="${o.t.out}">${ago(o.t.out)}</span><button class="btn sm ok" data-dl="${id}">Delivered</button></div>`}).join('')}</div>`:''}
    <div class="acts">${r.status!=='off'&&ready.length?`<button class="btn sm pri" data-pick="${r.id}">${ic('plus','sm')}Give order</button>`:''}${r.cash?`<button class="btn sm" data-st="${r.id}">${ic('cash','sm')}Receive</button>`:''}<button class="btn sm ghost" data-du="${r.id}">${r.status==='off'?'Start shift':'End shift'}</button></div></div>`).join('');
   const pg=$('#pg');
@@ -1586,7 +1600,6 @@ const userPerms=u=>u.perms&&u.perms.length?u.perms:(ROLES[u.role]||ROLES.admin).
 function userForm(u,after,mode){
   let role=u?(u.role||'admin'):'admin';
   let riderId=u?(u.riderId||''):'';
-  const canAcc=u?canAccept(u):true;
   let picked=u?userPerms(u).slice():ROLES[role].perms.slice();
   const permsHTML=()=>PERMS.map(([id,label,icn])=>`<label class="${picked.includes(id)?'on':''}" data-pm="${id}"><input type="checkbox" ${picked.includes(id)?'checked':''}>${ic(icn,'sm')}<span class="ell">${label}</span></label>`).join('');
   const rolesHTML=()=>Object.entries(ROLES).map(([id,r])=>`<button class="${role===id?'on':''}" data-rl="${id}">${ic(r.ic,'lg')}<b>${r.name}</b><small>${esc(r.note)}</small></button>`).join('');
@@ -1598,10 +1611,6 @@ function userForm(u,after,mode){
       <label class="field" style="margin-top:12px"><span>Login ID</span><input class="tx" id="uL" placeholder="kashif"></label>`}
     ${mode==='access'?'':`<label class="field" style="margin-top:12px"><span>${mode==='pass'?'New password':'Password'}</span><input class="tx" id="uP" placeholder="At least 6 characters"></label>`}
     ${mode==='pass'?'':`<div class="field" style="margin-top:16px"><span>Who is this user?</span><div class="roleseg" id="uRole">${rolesHTML()}</div></div>
-      <div class="field" id="uAccWrap" style="margin-top:16px;${role==='rider'?'':'display:none'}"><span>Rider options</span>
-       <label class="perms" style="grid-template-columns:1fr"><span class="${canAcc?'on':''}" id="uAccRow" style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:11px;background:var(--panel2);border:1px solid var(--line);cursor:pointer">
-        <input type="checkbox" id="uAcc" ${canAcc?'checked':''} style="width:17px;height:17px;accent-color:var(--or)">
-        ${ic('check','sm')}<span class="grow">Must accept an order before riding</span></span></label></div>
       <div class="field" id="uRiderWrap" style="margin-top:16px;${role==='rider'?'':'display:none'}"><span>Which rider on the board is this?</span>
        <select class="tx" id="uRider">${S.riders.map(r=>`<option value="${r.id}" ${riderId===r.id?'selected':''}>${esc(r.name)} · ${esc(r.bike)}</option>`).join('')}</select>
        <small class="dim" style="font-size:11.5px">He signs in and sees only this rider's drops and cash.</small></div>
@@ -1612,7 +1621,6 @@ function userForm(u,after,mode){
    const paint=()=>{const box=$('#uPerms',m);if(box){box.innerHTML=permsHTML();wirePerms()}
      const rb=$('#uRole',m);if(rb)$$('button',rb).forEach(b=>b.classList.toggle('on',b.dataset.rl===role));
      const rw=$('#uRiderWrap',m);if(rw)rw.style.display=role==='rider'?'':'none';
-     const aw=$('#uAccWrap',m);if(aw)aw.style.display=role==='rider'?'':'none';
      count()};
    const wirePerms=()=>$$('[data-pm]',m).forEach(l=>l.onclick=e=>{e.preventDefault();const id=l.dataset.pm;
      picked=picked.includes(id)?picked.filter(x=>x!==id):[...picked,id];
@@ -1626,7 +1634,6 @@ function userForm(u,after,mode){
        if(!picked.length){toast('Tick at least one section','Otherwise they can sign in and see nothing',{icon:'alert',tone:'bad'});return}
        u.role=role;u.perms=picked.slice();
        u.riderId=role==='rider'?(($('#uRider',m)||{}).value||riderId||'r0'):'';
-       u.can={accept:role==='rider'&&!!(($('#uAcc',m)||{}).checked)};
        toast('Access saved',`${u.name} · ${ROLES[role].name} · ${picked.length} of ${PERMS.length} sections`,{icon:'shield',tone:'ok'})}
      else{
        const n=$('#uN',m).value.trim();
@@ -1635,8 +1642,7 @@ function userForm(u,after,mode){
        const login=($('#uL',m).value.trim()||n.split(' ')[0]).toLowerCase();
        if(S.users.some(x=>x.login===login)){toast('That login ID is taken','Pick a different one',{icon:'alert',tone:'bad'});return}
        S.users.push({id:'u'+Date.now(),name:n,login,pass:pw||'changeme',on:true,role,perms:picked.slice(),
-         riderId:role==='rider'?(($('#uRider',m)||{}).value||'r0'):'',
-         can:{accept:role==='rider'&&!!(($('#uAcc',m)||{}).checked)}});
+         riderId:role==='rider'?(($('#uRider',m)||{}).value||'r0'):''});
        toast('User added',`${n} · ${ROLES[role].name} · ${picked.length} of ${PERMS.length} sections`,{icon:'user',tone:'ok'})}
      closeModal();after&&after()};
    setTimeout(()=>{const f=$('#uN',m)||$('#uP',m);f&&f.focus()},120);

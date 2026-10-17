@@ -60,12 +60,12 @@ server.mjs        zero-dependency static server with live reload
   the number. The live pipeline strip only appears for tonight, because that is
   the only period it means anything for.
 - **A rider's own screen** — a user with the Rider role gets two pages built for a
-  phone: his home, with what he owes and what is on the bike, and an Orders page
-  with his drops only, split into *On the bike* and *Delivered*. Tapping one opens
-  the customer, the phone number as a Call link, the address, the items, and a
-  box to leave a note the counter can read. Riders never get the voice —
-  notifications only. If the owner ticks **Must accept an order before riding**,
-  the rider has to accept a drop before the Delivered button appears.
+  phone: his home, with To take, To give and what is on the bike, and an Orders
+  page with his drops only, split into *On the bike* and *Delivered*. Tapping one
+  opens the customer, their number, the address, the items, and a box to leave a
+  note the counter can read. When the counter assigns him a drop he gets a
+  notification — riders never get the voice. There is nothing to accept: he rides,
+  then taps **Mark delivered**, and the cash moves from To take to To give.
 
 ## Where to change things
 
@@ -108,21 +108,24 @@ the agent quotes from.
 
 | | what it means |
 | --- | --- |
-| `onRoad(r)` | cash-on-delivery orders still out with him, not collected yet |
-| `r.cash` | cash already in his pocket since his last hand-in |
-| `toTake(r)` | `onRoad + cash` — everything he owes the shop |
+| `toTake(r)` | **To take** — cash-on-delivery orders out with him, still at the customer |
+| `toGive(r)` = `r.cash` | **To give** — cash in his pocket, not yet handed in |
 | `riderDone(r)` | every order he finished this shift |
 
-**To take is the number that matters, and delivering does not change it.** When a
-drop is marked delivered the money simply moves from `onRoad` into `r.cash`, so
-the total he owes stays exactly the same. Only **Receive** at the counter brings
-it down, and it asks what was actually counted so a short hand-in leaves the rest
-on his account. On his own screen the same two numbers read **To take** and
-**To give**.
+The money takes one path and never doubles up:
 
-Only cash-on-delivery counts — a prepaid order moves neither figure. The
-**Cash to collect** tile on the dashboard is `roadCash()`, the sum of every
-rider's `toTake`.
+1. A cash-on-delivery order is **assigned** → its total joins **To take**.
+2. He **marks it delivered** → that amount leaves To take and lands in **To give**.
+3. The counter clicks **Receive** → To give falls by whatever was actually
+   counted. To take is untouched.
+
+A prepaid order never enters either number. Partial hand-ins are kept honest: the
+breakdown lists what he collected, subtracts what he has already given, and shows
+the remainder — and the collected list is only cleared once he is square, so the
+figure and the orders behind it always agree.
+
+The **Cash to collect** tile on the dashboard is `roadCash()`, the sum of every
+rider's `toTake`, with the total sitting in riders' pockets beside it.
 
 **The Kitchen page is a coming-soon placeholder.** The real kitchen queue is the
 *In kitchen* column on the Delivery Orders board, and that is where every "sent to
@@ -137,8 +140,7 @@ product photos by replacing `bg` with `url(assets/your-photo.jpg) center/cover`.
 two roles, Admin and Rider, their defaults. Adding a user asks for a role and then
 lets you tick sections individually; the role is only the starting point. A Rider
 user is also tied to a rider on the board (`riderId`), which is how his screen
-knows whose drops to show, and carries `can.accept` for whether he has to accept a
-drop before riding.
+knows whose drops to show.
 
 **Install / offline** — `manifest.webmanifest` and `sw.js` at the project root.
 The worker is network-first, so a deploy is picked up straight away and the cache
