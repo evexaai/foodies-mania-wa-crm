@@ -589,7 +589,7 @@ select.tx{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .soon-bg>div:nth-child(7){grid-column:span 2}
 .soon-bg>div:nth-child(8){grid-column:span 2}
 .soon-c{position:relative;z-index:2;display:grid;gap:14px;justify-items:center;text-align:center;padding:30px;max-width:460px}
-.soon-c .badge{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;padding:7px 14px;border-radius:99px;color:var(--onor);background:linear-gradient(90deg,var(--or),var(--or2),var(--cream),var(--or2),var(--or));background-size:200% 100%;animation:shimmer 4s linear infinite}
+.soon-c .badge{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;padding:7px 14px;border-radius:99px;color:var(--onor);background:linear-gradient(90deg,var(--or),var(--or2),var(--cream),var(--or2),var(--or));background-size:200% 100%;animation:shimmer 12s linear infinite}
 .soon-c h2{font-size:34px}
 .soon-c p{margin:0;color:var(--mut)}
 .soon-c ul{list-style:none;padding:0;margin:4px 0 0;display:grid;gap:8px;text-align:left}
@@ -910,4 +910,14 @@ html[data-side="mini"] .side-logo .brand img{width:52px;height:52px}
   .rng{width:100%;overflow-x:auto;flex-wrap:nowrap;justify-content:flex-start}
   .dtabs button span{display:none}
   .dtabs button{padding:0 14px}
+}
+
+/* ---------- smooth scrolling + scroll-in motion ---------- */
+.content{overscroll-behavior:contain}
+/* Lenis drives the wheel; keep the native bar out of its way on the wrapper */
+.content.lenis-scrolling{scroll-behavior:auto}
+.rv{opacity:0;transform:translateY(16px)}
+.rv.in{opacity:1;transform:none;transition:opacity .55s var(--ease),transform .55s var(--ease)}
+@media (prefers-reduced-motion:reduce){
+  .rv,.rv.in{opacity:1;transform:none;transition:none}
 }

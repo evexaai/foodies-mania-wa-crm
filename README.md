@@ -45,6 +45,12 @@ server.mjs        zero-dependency static server with live reload
   phone, three on a desktop. The switch inside the bell panel turns pop-ups off
   altogether: alerts still land in the panel and still count on the bell, they
   just stop appearing over your work. The bell shows a slash while that is off.
+- **Smooth scrolling** — [Lenis](https://lenis.darkroom.engineering/) drives the
+  wheel on the working area, and cards below the fold rise in as you reach them.
+  Touch is deliberately left native, because a phone already scrolls better than
+  anything put in front of it. Both respect **prefers-reduced-motion**: if your
+  system has animations turned off you get plain native scrolling, which is the
+  correct behaviour but worth knowing if you expected the glide.
 - **Install it as an app** — the manifest and the service worker put Chrome's own
   install icon in the address bar. There is no install button inside the app.
   Once installed it opens in its own window and still works if the line drops.
@@ -106,35 +112,43 @@ the agent quotes from.
 
 **Rider money** — three numbers, each one clickable for the orders behind it:
 
+Two people watch the same money from opposite ends, so each sees it differently.
+
+**On the rider's own screen**
+
 | | what it means |
 | --- | --- |
-| `toTake(r)` | **To take** — cash-on-delivery orders out with him, still at the customer |
-| `toGive(r)` = `r.cash` | **To give** — cash in his pocket, not yet handed in |
-| `riderDone(r)` | every order he finished this shift |
+| `riderTake(r)` | **To take** — cash-on-delivery orders still at the customer |
+| `riderGive(r)` | **To give** — cash in his pocket, waiting to be handed in |
 
-The money takes one path and never doubles up:
+Marking a drop delivered moves it straight from the first to the second.
 
-1. A cash-on-delivery order is **assigned** → its total joins **To take**.
-2. He **marks it delivered** → that amount leaves To take and lands in **To give**.
-3. The counter clicks **Receive** → To give falls by whatever was actually
-   counted. To take is untouched.
+**On the counter's screen**
 
-A prepaid order never enters either number. Partial hand-ins are kept honest: the
-breakdown lists what he collected, subtracts what he has already given, and shows
-the remainder — and the collected list is only cleared once he is square, so the
-figure and the orders behind it always agree.
+| | what it means |
+| --- | --- |
+| `toTake(r)` | **To take** — everything he owes, on the road or in his pocket |
+| `collected(r)` | **Collected** — cash actually handed in tonight; it only grows |
 
-The **Cash to collect** tile on the dashboard is `roadCash()`, the sum of every
-rider's `toTake`, with the total sitting in riders' pockets beside it.
+Delivering changes nothing here, because the money is still out of the till
+either way. **Receive** is the only thing that moves it: To take falls by what
+was counted and Collected rises by the same amount.
+
+So one Rs 500 cash order travels like this:
+
+| | rider To take | rider To give | counter To take | counter Collected |
+| --- | --- | --- | --- | --- |
+| assigned | +500 | — | +500 | — |
+| delivered | −500 | +500 | unchanged | — |
+| handed in | — | −500 | −500 | +500 |
+
+Prepaid orders never enter any of it. Collected is backed by a ledger of
+hand-ins (`r.handins`) rather than a guess, so the figure and the list behind
+it always agree, even after part payments.
 
 **The Kitchen page is a coming-soon placeholder.** The real kitchen queue is the
 *In kitchen* column on the Delivery Orders board, and that is where every "sent to
 kitchen" link goes.
-
-**Campaign thumbnails** — each entry in `TPL` (in the `BULK MESSAGE` section)
-carries a `bg` gradient and three `art` icon ids. That is what draws the picture in
-the phone preview, and it changes as you pick a different message. Swap in real
-product photos by replacing `bg` with `url(assets/your-photo.jpg) center/cover`.
 
 **Staff access** — `PERMS` lists every section of the CRM and `ROLES` gives the
 two roles, Admin and Rider, their defaults. Adding a user asks for a role and then

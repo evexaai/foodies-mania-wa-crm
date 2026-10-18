@@ -158,7 +158,7 @@ const RIDERS=[['Hamza Qureshi','KHB-4821'],['Saad Ali','KKT-1290'],['Faizan Ahme
  ['Rayyan Khan','KJA-9012'],['Daniyal Shaikh','KHS-5547'],['Arham Baig','KHP-2208'],['Owais Memon','KHE-6619'],
  ['Shayan Rizvi','KJB-4402'],['Sufiyan Ansari','KHT-8873'],['Moiz Abbasi','KHL-1157']];
 /* cash = still to hand in to Foodies Mania, collected = everything he took tonight */
-RIDERS.forEach((r,i)=>S.riders.push({id:'r'+i,name:r[0],bike:r[1],phone:phoneNo(),status:i>=9?'off':'free',cash:0,today:0,orders:[],settledAt:SHIFT0,earn:0,since:SHIFT0-ri(30,500)*DAY}));
+RIDERS.forEach((r,i)=>S.riders.push({id:'r'+i,name:r[0],bike:r[1],phone:phoneNo(),status:i>=9?'off':'free',cash:0,today:0,orders:[],handins:[],settledAt:SHIFT0,earn:0,since:SHIFT0-ri(30,500)*DAY}));
 
 /* history: 60 nights */
 (function genHistory(){
@@ -207,8 +207,9 @@ RIDERS.forEach((r,i)=>S.riders.push({id:'r'+i,name:r[0],bike:r[1],phone:phoneNo(
     ['approved','preparing','ready','out','delivered'].forEach(key=>{if(T[key]&&T[key]>nowT-30000)T[key]=nowT-ri(1,3)*MIN});
     addOrder(o);
     if(o.status==='delivered'){applyDelivered(o);const r=S.riders.find(x=>x.id===o.rider);r.today++;r.earn+=60;
-      /* anything collected after his last hand-in is still in his pocket */
-      if(o.pay==='COD'&&T.delivered>SHIFT0+5*HOUR)r.cash+=o.total}
+      /* collected after his last hand-in is still in his pocket; anything
+         earlier in the shift he has already brought to the counter */
+      if(o.pay==='COD'){if(T.delivered>SHIFT0+5*HOUR)r.cash+=o.total;else r._early=(r._early||0)+o.total}}
   });
   // riders currently out
   const outs=S.orders.filter(o=>o.status==='out');
@@ -218,7 +219,8 @@ RIDERS.forEach((r,i)=>S.riders.push({id:'r'+i,name:r[0],bike:r[1],phone:phoneNo(
      at least one cash-on-delivery drop on his bike */
   const own=outs.filter(o=>o.rider==='r0');
   if(own.length&&!own.some(o=>o.pay==='COD')){own[0].pay='COD';own[0].paid=false}
-  S.riders.forEach(r=>r.settledAt=SHIFT0+5*HOUR);
+  S.riders.forEach(r=>{r.settledAt=SHIFT0+5*HOUR;
+    if(r._early){r.handins=[{t:SHIFT0+5*HOUR,amt:r._early}];delete r._early}});
   // takeaway shares tonight
   for(let i=0;i<19;i++){const c=pick(S.customers);S.takeaway.push({name:c.name,phone:c.phone,t:SHIFT0+ri(10,460)*MIN})}
   S.takeaway.sort((a,b)=>a.t-b.t);
@@ -395,15 +397,29 @@ const freeRiders=()=>S.riders.filter(r=>r.status!=='off').sort((a,b)=>a.orders.l
    collected= COD cash in his pocket since his last hand-in
    delivered= orders he finished tonight                                        */
 const riderOut=r=>r.orders.map(id=>S.omap[id]).filter(Boolean);
-/* To take = cash-on-delivery orders he is out with, still at the customer.
-   To give = what he has collected and not yet handed in at the counter.
-   Marking a drop delivered moves the money from the first into the second. */
-const toTake=r=>riderOut(r).filter(o=>o.pay==='COD').reduce((a,o)=>a+o.total,0);
-const toGive=r=>r.cash;
+/* The rider and the counter watch the same money from two ends.
+
+   RIDER'S SCREEN
+     To take  = cash-on-delivery orders still at the customer
+     To give  = cash in his pocket, waiting to be handed in
+     marking a drop delivered moves it from the first to the second
+
+   COUNTER'S SCREEN
+     To take   = everything he owes — on the road or in his pocket, it is all
+                 still out of the till, so delivering changes nothing here
+     Collected = cash actually handed in tonight; it only ever grows
+
+   Receive at the counter is the one thing that moves money between them. */
+const onRoad=r=>riderOut(r).filter(o=>o.pay==='COD').reduce((a,o)=>a+o.total,0);
+const riderTake=r=>onRoad(r);          /* rider: still to collect  */
+const riderGive=r=>r.cash;             /* rider: still to hand in  */
+const toTake=r=>onRoad(r)+r.cash;      /* counter: still out of the till */
+const collected=r=>(r.handins||[]).reduce((a,h)=>a+h.amt,0);
 const riderDone=r=>S.orders.filter(o=>o.rider===r.id&&o.status==='delivered'&&o.t.delivered>=SHIFT0).sort((a,b)=>b.t.delivered-a.t.delivered);
 const riderHolding=r=>riderDone(r).filter(o=>o.pay==='COD'&&o.t.delivered>r.settledAt);
-const roadCash=()=>S.riders.reduce((a,r)=>a+toTake(r),0);   /* still at customers */
-const heldCash=()=>S.riders.reduce((a,r)=>a+r.cash,0);       /* in riders' pockets */
+const roadCash=()=>S.riders.reduce((a,r)=>a+toTake(r),0);      /* owed by every rider */
+const heldCash=()=>S.riders.reduce((a,r)=>a+r.cash,0);          /* sitting in pockets */
+const collectedCash=()=>S.riders.reduce((a,r)=>a+collected(r),0);
 
 /* ================= actions (the glue that interconnects every page) ================= */
 const A={
@@ -434,7 +450,9 @@ const A={
  markPaid(id){const o=S.omap[id];o.paid=true;toast('Payment marked received',`${o.id} · ${payName[o.pay]} · ${rs(o.total)}`,{icon:'wallet',tone:'ok'});changed()},
  /* the owner types in what he actually counted, so a short hand-in stays on the books */
  settle(rid,amt){const r=S.riders.find(x=>x.id===rid);const got=Math.max(0,Math.min(r.cash,Math.round(amt)));
+   if(got<=0)return;
    r.cash-=got;
+   (r.handins||(r.handins=[])).push({t:now(),amt:got});   /* the Collected ledger */
    /* keep the list of collected orders until he is square, so the number and
       the breakdown behind it always agree */
    if(r.cash===0)r.settledAt=now();
@@ -604,7 +622,7 @@ function simStart(){
   setTimeout(()=>newChat({kind:'takeaway'}),19000);
   /* the arrival rate is what sets the notification rate, so it stays as it was.
      The cap is only there to stop the inbox running away. */
-  const loop=()=>{simTimer=setTimeout(()=>{if(S.set.sim&&S.set.wa){const active=S.chats.filter(c=>c.state==='ai').length;if(active<12)newChat()}loop()},ri(24000,38000))};
+  const loop=()=>{simTimer=setTimeout(()=>{if(S.set.sim&&S.set.wa){const active=S.chats.filter(c=>c.state==='ai').length;if(active<12)newChat()}loop()},78000)};   /* a new WhatsApp chat every 1.3 minutes */
   setTimeout(loop,26000);
   /* while a rider is the one signed in, the counter hands him a ready order now
      and then, so his screen behaves like a real shift */
@@ -630,7 +648,7 @@ function tick(){
 /* ================= router + chrome ================= */
 const NAV=[
  {id:'dash',t:'Dashboard',ic:'dash'},{id:'chats',t:'Live Conversations',ic:'chat'},{id:'orders',t:'Delivery Orders',ic:'bike'},
- {id:'riders',t:'Riders',ic:'helmet'},{id:'kitchen',t:'Kitchen',ic:'chef',soon:1},{h:'Grow'},{id:'bulk',t:'Bulk Message',ic:'send'},
+ {id:'riders',t:'Riders',ic:'helmet'},{id:'kitchen',t:'Kitchen',ic:'chef',soon:1},{h:'Grow'},{id:'bulk',t:'Bulk Message',ic:'send',soon:1},
  {id:'menu',t:'Menu Management',ic:'cloche'},{id:'customers',t:'Customers',ic:'users'},{id:'reports',t:'Payments & Reports',ic:'chart',soon:1},
  {id:'promos',t:'Promotions & Offers',ic:'tag',soon:1},{h:'Account'},{id:'settings',t:'Settings',ic:'gear'}];
 const BNAV=[{id:'dash',t:'Home',ic:'dash'},{id:'chats',t:'Chats',ic:'chat'},{id:'orders',t:'Orders',ic:'bike'},{id:'riders',t:'Riders',ic:'helmet'},{id:'more',t:'More',ic:'bars'}];
@@ -662,10 +680,13 @@ function go(p,opts={}){
   cur=p;
   $$('#nav button,#bnav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p||(b.dataset.p==='more'&&!BNAV.some(x=>x.id===p))));
   $('#pgTitle').textContent=NAV.find(n=>n.id===p).t;
-  const c=$('#content');c.className='content'+(page.flush?' flush':'');c.scrollTop=0;
+  const c=$('#content');c.className='content'+(page.flush?' flush':'');
+  Smooth.top();
   c.innerHTML=`<div class="page" id="pg"></div>`;
   delete $('#pg').dataset.init;
   page.render($('#pg'),opts);
+  Smooth.attach();
+  Reveal.scan();
   refreshChrome();
 }
 let lastBadge={};
@@ -713,6 +734,65 @@ const Side={
    const b=$('#burger');if(b)b.title=innerWidth<=1024?'Menu':(this.mini?'Expand sidebar':'Collapse sidebar')},
  toggle(){this.mini=!this.mini;LS.set('side',this.mini?'mini':'full');this.apply()}
 };
+/* ---------- smooth scrolling and scroll-in motion ----------
+   Lenis drives the wheel; touch is left alone because a phone's own scrolling is
+   already better than anything we would put in front of it. Everything degrades
+   to plain native scrolling if the script does not load. */
+const reduceMotion=()=>{try{return matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){return false}};
+const Smooth={
+ lenis:null,running:false,
+ init(){
+   if(reduceMotion()||!window.Lenis)return;
+   this.attach();
+   if(this.running)return;
+   this.running=true;
+   const tick=t=>{if(this.lenis)this.lenis.raf(t);requestAnimationFrame(tick)};
+   requestAnimationFrame(tick);
+   addEventListener('resize',()=>{try{this.lenis&&this.lenis.resize()}catch(e){}});
+ },
+ attach(){
+   if(reduceMotion()||!window.Lenis)return;
+   if(this.lenis){try{this.lenis.destroy()}catch(e){}this.lenis=null}
+   const wrap=$('#content'),content=$('#pg');
+   if(!wrap||!content||wrap.classList.contains('flush'))return;  /* chats scrolls its own panes */
+   try{
+     this.lenis=new window.Lenis({
+       wrapper:wrap,content,
+       duration:.85,
+       easing:t=>1-Math.pow(1-t,3),
+       smoothWheel:true,
+       syncTouch:false,
+       wheelMultiplier:1,
+       overscroll:false
+     });
+   }catch(e){this.lenis=null}
+ },
+ /* a page change should land at the top instantly, not glide there */
+ top(){
+   if(this.lenis){try{this.lenis.scrollTo(0,{immediate:true});return}catch(e){}}
+   const c=$('#content');if(c)c.scrollTop=0;
+ }
+};
+/* cards below the fold rise in as you reach them — transform and opacity only */
+const Reveal={
+ io:null,
+ init(){
+   if(reduceMotion()||!('IntersectionObserver' in window))return;
+   this.io=new IntersectionObserver(es=>es.forEach(e=>{
+     if(e.isIntersecting){e.target.classList.add('in');this.io.unobserve(e.target)}
+   }),{root:$('#content'),rootMargin:'0px 0px -5% 0px',threshold:.04});
+ },
+ scan(){
+   if(!this.io)return;
+   const box=$('#content');if(!box)return;
+   const fold=box.getBoundingClientRect().bottom-24;
+   $$('#pg > .card, #pg > .grid > *, #pg > .rdrops > *').forEach(el=>{
+     if(el.dataset.rv)return;
+     if(el.getBoundingClientRect().top>fold){el.dataset.rv=1;el.classList.add('rv');this.io.observe(el)}
+   });
+ }
+};
+
 /* ---------- install as an app ---------- */
 /* The worker plus the manifest is what puts the install icon in Chrome's
    address bar; this button fires the same prompt, within reach on a phone. */
@@ -813,8 +893,8 @@ function riderHome(el,keep){
    <div class="hello"><div><h2>Salam, ${esc(r.name.split(' ')[0])}</h2><p>${out.length?`You have ${out.length} order${out.length===1?'':'s'} on the bike right now.`:'Nothing on the bike. The counter will send you the next one.'}</p></div>
     <div class="shift">${ic(r.status==='off'?'pause':'bike','sm')}<span>${r.status==='off'?'Off duty':r.status==='busy'?'On delivery':'Free — waiting for an order'}</span></div></div>
    <div class="grid g3 st" style="margin-top:16px">
-    <button class="card kpi rk" data-br="take:${r.id}"><div class="ico">${ic('cash')}</div><div><div class="lbl">To take</div><div class="val num">${rs(toTake(r))}</div><div class="dl"><span class="dim">Still to collect at the door</span></div></div></button>
-    <button class="card kpi rk" data-br="give:${r.id}"><div class="ico">${ic('wallet')}</div><div><div class="lbl">To give</div><div class="val num">${rs(toGive(r))}</div><div class="dl"><span class="dim">Hand this in at the counter</span></div></div></button>
+    <button class="card kpi rk" data-br="rtake:${r.id}"><div class="ico">${ic('cash')}</div><div><div class="lbl">To take</div><div class="val num">${rs(riderTake(r))}</div><div class="dl"><span class="dim">Still to collect at the door</span></div></div></button>
+    <button class="card kpi rk" data-br="give:${r.id}"><div class="ico">${ic('wallet')}</div><div><div class="lbl">To give</div><div class="val num">${rs(riderGive(r))}</div><div class="dl"><span class="dim">Hand this in at the counter</span></div></div></button>
     <button class="card kpi rk" data-br="done:${r.id}"><div class="ico">${ic('check')}</div><div><div class="lbl">Delivered tonight</div><div class="val num">${r.today}</div><div class="dl"><span class="dim">${rs(r.earn)} earned</span></div></div></button>
    </div>
    <div class="card" style="margin-top:16px"><div class="card-h"><h3>${ic('bike')}On the bike</h3><span class="dim sp" style="font-size:12.5px">Oldest first</span></div>
@@ -1103,7 +1183,7 @@ PAGES.dash={
     kp.innerHTML=K.map((x,i)=>`<${x[6]?'button':'div'} class="card kpi kpi2 ${x[6]?'tap':''}" ${x[6]?`data-k2="${x[6]}"`:''} style="--d:${i}"><div class="kh"><div class="ico">${ic(x[0])}</div><div class="lbl">${x[1]}</div></div><div class="val num" id="kv${i}">0</div><div class="kft"><div class="dl" id="kd${i}"></div>${x[4]?spark(x[4],i===1?'var(--or2)':'var(--or)'):''}</div></${x[6]?'button':'div'}>`).join('');
     $$('[data-k2]',kp).forEach(b=>b.onclick=()=>b.dataset.k2==='take'?takeawayList():go('riders'));
   }
-  const CAP={2:'Still at customers · '+rs(heldCash())+' in riders\' pockets',3:'Tap to see who got it'};
+  const CAP={2:rs(heldCash())+' already in pockets · '+rs(collectedCash())+' handed in',3:'Tap to see who got it'};
   K.forEach((x,i)=>{countUp($('#kv'+i),x[2],x[5]||undefined);
     $('#kd'+i).innerHTML=x[3]==null?`<span class="dim">${CAP[i]||''}</span>`:`<span class="${x[3]>=0?'up':'down'}">${x[3]>=0?'▲':'▼'} ${Math.abs(x[3])}%</span><span class="dim">vs the ${rangeNights()>1?'period before':'night before'}</span>`});
   $('#dSub').textContent=live?'Here is how tonight is going. Everything below updates live.':`Showing ${rangeLabel().toLowerCase()} · ${L.length} orders · ${rs(rev)}`;
@@ -1127,7 +1207,7 @@ PAGES.dash={
 
   /* riders */
   const rs_=[...S.riders].sort((a,b)=>({free:0,busy:1,off:2}[a.status]-{free:0,busy:1,off:2}[b.status]));
-  $('#dRiders').innerHTML=rs_.slice(0,6).map(r=>`<button data-rg="${r.id}"><div class="av sm ${avc(r.name)}">${ini(r.name)}</div><div class="grow"><b>${esc(r.name)}</b><div class="dim" style="font-size:12px">${r.today} delivered · ${rs(toTake(r))} to take · ${rs(toGive(r))} to give</div></div><span class="tag ${r.status==='free'?'t-delivered':r.status==='busy'?'t-out':''}">${r.status==='free'?'Free':r.status==='busy'?r.orders.length+' on road':'Off'}</span></button>`).join('');
+  $('#dRiders').innerHTML=rs_.slice(0,6).map(r=>`<button data-rg="${r.id}"><div class="av sm ${avc(r.name)}">${ini(r.name)}</div><div class="grow"><b>${esc(r.name)}</b><div class="dim" style="font-size:12px">${r.today} delivered · ${rs(toTake(r))} to take · ${rs(collected(r))} collected</div></div><span class="tag ${r.status==='free'?'t-delivered':r.status==='busy'?'t-out':''}">${r.status==='free'?'Free':r.status==='busy'?r.orders.length+' on road':'Off'}</span></button>`).join('');
   $$('[data-rg]',el).forEach(b=>b.onclick=()=>riderBreakdown(S.riders.find(x=>x.id===b.dataset.rg),'take'));
 
   this.pane();
@@ -1290,12 +1370,30 @@ function receiveCash(r){
    setTimeout(()=>{inp.focus();inp.select()},120);
   });
 }
+/* Collected is every hand-in he has made tonight, in order. */
+function handinList(r){
+  const H=(r.handins||[]).slice().reverse();
+  const tot=collected(r);
+  modal(`<div class="md-h"><div class="grow"><div class="row" style="gap:10px"><div class="av sm ${avc(r.name)}">${ini(r.name)}</div><h3>Collected</h3></div><p>Cash ${esc(r.name.split(' ')[0])} has handed in at the counter tonight. This is the night's total for him and only ever grows.</p></div><button class="iconbtn" data-close>${ic('x')}</button></div>
+   <div class="md-b">${H.length?`<div class="brlist">${H.map(h=>`<div class="brrow" style="cursor:default"><span class="food sm">${ic('cash','sm')}</span><div class="grow"><b>Handed in at the counter</b><div class="dim" style="font-size:12px">${t12(h.t)}</div></div><b class="num">${rs(h.amt)}</b></div>`).join('')}</div>
+     <div class="kv tot" style="margin-top:14px"><span style="color:var(--fg)">${H.length} hand-in${H.length===1?'':'s'}</span><span class="num">${rs(tot)}</span></div>
+     <div class="dim" style="font-size:12.5px;margin-top:10px">${ic('wallet','sm')} Still owed by him: <b>${rs(toTake(r))}</b></div>`
+    :`<div class="empty">${ic('cash')}He has not handed anything in yet tonight.</div>`}</div>
+   <div class="md-f"><button class="btn ghost" data-close>Close</button>${r.cash?`<button class="btn pri" id="hlRec">${ic('cash')}Receive ${rs(r.cash)}</button>`:''}</div>`,m=>{
+    const b=$('#hlRec',m);if(b)b.onclick=()=>{closeModal();receiveCash(r)};
+  });
+}
+
 /* Tap any of a rider's three numbers to see exactly which orders make it up. */
 function riderBreakdown(r,kind){
   if(!r)return;
+  if(kind==='coll')return handinList(r);   /* Collected is a ledger, not a list of orders */
   const V={
-   take:{t:'To take',sub:'Cash '+r.name.split(' ')[0]+' still has to collect at the door. It moves to To give the moment he marks the drop delivered.',
-         rows:riderOut(r).filter(o=>o.pay==='COD'),tot:toTake(r),icon:'bike',
+   take:{t:'To take',sub:'Everything '+r.name.split(' ')[0]+' owes the counter — still at the customer or already in his pocket. It stays here until he hands the cash in.',
+         rows:[...riderOut(r).filter(o=>o.pay==='COD'),...riderHolding(r)],tot:toTake(r),icon:'bike',
+         empty:'He owes nothing right now.'},
+   rtake:{t:'To take',sub:'Cash '+r.name.split(' ')[0]+' still has to collect at the door.',
+         rows:riderOut(r).filter(o=>o.pay==='COD'),tot:onRoad(r),icon:'bike',
          empty:'Nothing left to collect.'},
    give:{t:'To give',sub:'Cash '+r.name.split(' ')[0]+' has collected and not yet handed in at the counter.',
          rows:riderHolding(r),tot:r.cash,icon:'cash',
@@ -1320,7 +1418,7 @@ function riderBreakdown(r,kind){
       <div class="kv tot"><span style="color:var(--fg)">Still to give</span><span class="num">${rs(r.cash)}</span></div></div>`:''}
     ${prepaid.length?`<div class="dim" style="font-size:12.5px;margin-top:12px">${ic('wallet','sm')} Also carrying ${prepaid.length} already-paid order${prepaid.length===1?'':'s'} — no cash to collect on ${prepaid.length===1?'that one':'those'}.</div>`:''}
    </div>
-   <div class="md-f"><button class="btn ghost" data-close>Close</button>${kind==='give'&&r.cash?`<button class="btn pri" id="brRec">${ic('cash')}Receive cash</button>`:''}</div>`,m=>{
+   <div class="md-f"><button class="btn ghost" data-close>Close</button>${(kind==='give'||kind==='take')&&r.cash?`<button class="btn pri" id="brRec">${ic('cash')}Receive ${rs(r.cash)}</button>`:''}</div>`,m=>{
     $$('[data-o]',m).forEach(b=>b.onclick=()=>{closeModal();orderDrawer(b.dataset.o)});
     const rec=$('#brRec',m);if(rec)rec.onclick=()=>{closeModal();receiveCash(r)};
   });
@@ -1330,7 +1428,7 @@ PAGES.riders={
   el.innerHTML=`<div class="grid g4 st" id="rk"></div>
    <div class="card" style="margin-top:16px"><div class="card-h"><h3>${ic('hourglass')}Ready orders waiting for a rider</h3><span class="dim sp" style="font-size:12.5px">Kitchen marked these ready</span></div><div class="waitbar" id="rw"></div></div>
    <div class="toolbar" style="margin-top:20px"><h3 style="font-size:18px">Team tonight</h3><span class="dim" style="font-size:12.5px">Free riders first</span><button class="btn sm" style="margin-left:auto" id="addR">${ic('plus','sm')}Add rider</button></div><div class="rdr" id="rl"></div>`;
-  $('#addR').onclick=()=>modal(`<div class="md-h"><div class="grow"><h3>Add rider</h3><p>Riders appear in the assign list straight away.</p></div><button class="iconbtn" data-close>${ic('x')}</button></div><div class="md-b"><label class="field"><span>Full name</span><input class="tx" id="nrN" placeholder="e.g. Zain Abbasi"></label><label class="field"><span>Phone</span><input class="tx" id="nrP" placeholder="+92 3xx xxxxxxx"></label><label class="field"><span>Bike number</span><input class="tx" id="nrB" placeholder="KHX-0000"></label></div><div class="md-f"><button class="btn ghost" data-close>Cancel</button><button class="btn pri" id="nrOk">Add rider</button></div>`,m=>$('#nrOk',m).onclick=()=>{const n=$('#nrN',m).value.trim()||'New Rider';S.riders.push({id:'r'+S.riders.length+Date.now(),name:n,bike:$('#nrB',m).value||'KHX-0000',phone:$('#nrP',m).value||phoneNo(),status:'free',cash:0,today:0,orders:[],settledAt:now(),earn:0,since:now()});closeModal();toast('Rider added',n+' is free and ready',{icon:'helmet',tone:'ok'});changed()});
+  $('#addR').onclick=()=>modal(`<div class="md-h"><div class="grow"><h3>Add rider</h3><p>Riders appear in the assign list straight away.</p></div><button class="iconbtn" data-close>${ic('x')}</button></div><div class="md-b"><label class="field"><span>Full name</span><input class="tx" id="nrN" placeholder="e.g. Zain Abbasi"></label><label class="field"><span>Phone</span><input class="tx" id="nrP" placeholder="+92 3xx xxxxxxx"></label><label class="field"><span>Bike number</span><input class="tx" id="nrB" placeholder="KHX-0000"></label></div><div class="md-f"><button class="btn ghost" data-close>Cancel</button><button class="btn pri" id="nrOk">Add rider</button></div>`,m=>$('#nrOk',m).onclick=()=>{const n=$('#nrN',m).value.trim()||'New Rider';S.riders.push({id:'r'+S.riders.length+Date.now(),name:n,bike:$('#nrB',m).value||'KHX-0000',phone:$('#nrP',m).value||phoneNo(),status:'free',cash:0,today:0,orders:[],handins:[],settledAt:now(),earn:0,since:now()});closeModal();toast('Rider added',n+' is free and ready',{icon:'helmet',tone:'ok'});changed()});
   this.refresh();
  },
  refresh(){
@@ -1344,7 +1442,7 @@ PAGES.riders={
   const L=[...S.riders].sort((a,b)=>({free:0,busy:1,off:2}[a.status]-{free:0,busy:1,off:2}[b.status])||b.today-a.today);
   $('#rl').innerHTML=L.map(r=>`<div class="card rc ${r.status==='off'?'off':''}" data-k="rc${r.id}${r.status}">
    <div class="r1"><div class="av lg ${avc(r.name)}">${ini(r.name)}</div><div class="grow"><b style="font-size:15.5px">${esc(r.name)}</b><div class="dim" style="font-size:12.5px">${r.phone} · ${r.bike}</div></div><span class="tag ${r.status==='free'?'t-delivered':r.status==='busy'?'t-out':''}">${r.status==='free'?'<span class="dot"></span>Free':r.status==='busy'?'On delivery':'Off duty'}</span></div>
-   <div class="stat"><button data-br="done:${r.id}"><small>Delivered</small><b class="num">${r.today}</b></button><button data-br="take:${r.id}" class="take ${toTake(r)?'live':''}"><small>To take</small><b class="num">${rs(toTake(r))}</b></button><button data-br="give:${r.id}" class="hand ${r.cash?'':'clear'}"><small>To give</small><b class="num">${rs(toGive(r))}</b></button></div>
+   <div class="stat"><button data-br="done:${r.id}"><small>Delivered</small><b class="num">${r.today}</b></button><button data-br="take:${r.id}" class="take ${toTake(r)?'live':''}"><small>To take</small><b class="num">${rs(toTake(r))}</b></button><button data-br="coll:${r.id}" class="hand ${collected(r)?'clear':''}"><small>Collected</small><b class="num">${rs(collected(r))}</b></button></div>
    ${r.orders.length?`<div class="cur">${r.orders.map(id=>{const o=S.omap[id];return `<div>${ic('bike','sm')}<span class="mono" style="color:var(--cyan)">${id}</span><span class="grow ell">${esc(o.area)} · ${rs(o.total)}</span><span class="dim" data-since="${o.t.out}">${ago(o.t.out)}</span><button class="btn sm ok" data-dl="${id}">Delivered</button></div>`}).join('')}</div>`:''}
    <div class="acts">${r.status!=='off'&&ready.length?`<button class="btn sm pri" data-pick="${r.id}">${ic('plus','sm')}Give order</button>`:''}${r.cash?`<button class="btn sm" data-st="${r.id}">${ic('cash','sm')}Receive</button>`:''}<button class="btn sm ghost" data-du="${r.id}">${r.status==='off'?'Start shift':'End shift'}</button></div></div>`).join('');
   const pg=$('#pg');
@@ -1433,103 +1531,9 @@ PAGES.customers={
   $('#cuNote').onchange=e=>{c.note=e.target.value;toast('Note saved',c.name,{icon:'note',tone:'ok'})};
   $$('[data-o]',box).forEach(b=>b.onclick=()=>orderDrawer(b.dataset.o));
   $('#cuChat').onclick=()=>{let ch=S.chats.find(x=>x.cid===c.id);if(!ch){ch={id:'chm'+Date.now(),cid:c.id,state:'human',msgs:[{from:'sys',text:'You started this chat from the customer profile.',t:now()}],unread:0,last:now(),draft:{items:[],note:'',addr:'',area:'',fee:0,pay:''},kind:'delivery'};S.chats.unshift(ch)}go('chats',{chat:ch.id})};
-  $('#cuOffer').onclick=()=>go('bulk',{one:c.id});
+  $('#cuOffer').onclick=()=>go('bulk');
   $('#cuBlock').onclick=()=>{if(c.blocked){c.blocked=false;toast('Customer unblocked',c.name,{icon:'check',tone:'ok'});changed()}else confirmBox(`Block ${c.name}?`,'The AI agent will stop replying to this number and they are left out of bulk messages.','Block',()=>{c.blocked=true;toast('Customer blocked',c.name,{icon:'block',tone:'bad'});changed()},1)};
  }
-};
-
-/* ================= BULK MESSAGE ================= */
-/* bg + art give every message its own thumbnail in the phone preview */
-const TPL=[
- {id:'platter',t:'Family Platter',d:'Rs 2,200 deal',ic:'platter',ban:'RS 2,200',sub:'FAMILY PLATTER',
-  bg:'radial-gradient(circle at 72% 26%,#ffb347,#e2541a 52%,#6d1f06)',art:['f-platter','f-chicken','f-drink'],
-  msg:'Hi {name}! Family night? Get the Foodies Mania Family Platter for just Rs 2,200 🍕🍔 Order on this number and we deliver hot to {area}.'},
- {id:'lava',t:'Cheesy Lava',d:'Signature special',ic:'flame',ban:'CHEESY LAVA',sub:'RS 600 · TRY IT TONIGHT',
-  bg:'radial-gradient(circle at 28% 24%,#ffd36b,#f07b1a 46%,#8a2b06)',art:['f-pizza','f-bowl','f-fries'],
-  msg:'Hi {name}! Craving something cheesy? Our Cheesy Lava is waiting for you at Rs 600 🔥 Reply "LAVA" to order now. Have some more!'},
- {id:'mighty',t:'Mighty Burger',d:'Rs 450 hero',ic:'burger',ban:'MIGHTY BURGER',sub:'RS 450',
-  bg:'linear-gradient(140deg,#3a2217,#7a2f10 52%,#c45a16)',art:['f-burger','f-fries','f-drink'],
-  msg:'Hi {name}! The Mighty Burger is back on your mind? Rs 450 only, delivered to {area}. Reply to order 🍔'},
- {id:'late',t:'Late Night',d:'Open till 5 AM',ic:'moon',ban:'OPEN TILL 5 AM',sub:'LATE NIGHT CRAVINGS',
-  bg:'linear-gradient(150deg,#121d36,#2b2358 52%,#5a2a6b)',art:['f-roll','i-moon','f-fries'],
-  msg:'Hi {name}! Up late? Foodies Mania is open till 5 AM 🌙 Zinger Roll Rs 280, Pizza Fries Rs 450. Just reply with your order.'},
- {id:'miss',t:'We miss you',d:'Win-back message',ic:'heart',ban:'WE MISS YOU',sub:'COME BACK TONIGHT',
-  bg:'linear-gradient(140deg,#7d2442,#d14a5e 58%,#f0865f)',art:['i-heart','f-burger','f-pizza'],
-  msg:'Hi {name}! It has been a while 🧡 Your favourite Foodies Mania meal is one message away. Reply and our AI will take your order.'},
- {id:'eid',t:'Festival greeting',d:'Eid / occasions',ic:'gift',ban:'EID MUBARAK',sub:'FROM FOODIES MANIA',
-  bg:'linear-gradient(145deg,#0b3326,#17694f 54%,#d8a43a)',art:['i-gift','f-platter','i-sparkle'],
-  msg:'Eid Mubarak {name}! 🌙 Celebrate with family and order your feast from Foodies Mania. Have some more!'},
- {id:'custom',t:'Custom message',d:'Write your own',ic:'edit',ban:'FOODIES MANIA',sub:'HAVE SOME MORE!',
-  bg:'linear-gradient(140deg,#2a170b,#c4500d 58%,#ff9b4d)',art:['f-burger','f-pizza','f-drink'],
-  msg:'Hi {name}! '}];
-const logoSrc=()=>{const i=document.querySelector('.side-logo img');return i?i.src:'assets/logo.webp'};
-let bk={aud:'vip',area:'',tpl:'platter',msg:TPL[0].msg,when:'now',one:null,sending:false};
-const audList=()=>{const base=S.customers.filter(c=>!c.blocked&&(c.n>0||c.since>=SHIFT0-7*DAY));
-  if(bk.aud==='one')return base.filter(c=>c.id===bk.one);
-  let L=bk.aud==='all'?base:base.filter(c=>segOf(c)===bk.aud);if(bk.area)L=L.filter(c=>c.area===bk.area);return L};
-PAGES.bulk={
- render(el,opts){
-  if(opts.one){bk.aud='one';bk.one=opts.one}
-  el.innerHTML=`<div class="bk"><div style="display:grid;gap:16px;min-width:0">
-   <div class="card steps" id="bkSteps"></div>
-   <div class="card"><div class="card-h"><h3>${ic('users')}1. Who should get it?</h3><select class="tx sp" id="bkArea" style="width:auto;height:36px" aria-label="Area"><option value="">Every area</option>${AREAS.map(a=>`<option ${bk.area===a.name?'selected':''}>${a.name}</option>`).join('')}</select></div><div class="aud" id="bkAud"></div>
-    <div class="row dim" style="margin-top:12px;font-size:12.5px">${ic('wa','sm')}Sends from the delivery WhatsApp number. Blocked customers are left out.</div></div>
-   <div class="card"><div class="card-h"><h3>${ic('note')}2. Pick a message</h3></div><div class="tpl" id="bkTpl"></div></div>
-   <div class="card"><div class="card-h"><h3>${ic('edit')}3. Edit the message</h3><span class="dim sp" id="bkLen" style="font-size:12px"></span></div><textarea class="tx" id="bkMsg" rows="4" maxlength="320" aria-label="Message">${esc(bk.msg)}</textarea>
-    <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:8px"><button class="btn sm" data-ins="{name}">${ic('plus','sm')}Customer name</button><button class="btn sm" data-ins="{area}">${ic('plus','sm')}Area</button><button class="btn sm" data-ins="🔥">${ic('plus','sm')}Emoji</button><span class="dim" style="font-size:12px;margin-left:auto">Short messages with one clear offer get more replies.</span></div></div>
-   <div class="card sendbar" id="bkSend"></div></div>
-   <div style="display:grid;gap:16px;align-content:start"><div class="card"><div class="card-h"><h3>${ic('eye')}Live preview</h3></div><div class="phone"><div class="ph-scr"><div class="ph-bar">${ic('back','sm')}<img src="${$('.side-logo img').src}" alt=""><div class="grow"><b style="font-size:14px">Foodies Mania</b><small>online</small></div>${ic('phone','sm')}</div><div class="ph-body" id="bkPh"></div></div></div></div>
-   <div class="card"><div class="card-h"><h3>${ic('calendar')}Recent campaigns</h3></div><div class="lst" id="bkCamp"></div></div></div></div>`;
-  $('#bkArea').onchange=e=>{bk.area=e.target.value;this.refresh()};
-  $('#bkMsg').oninput=e=>{bk.msg=e.target.value;this.preview()};
-  $$('[data-ins]',el).forEach(b=>b.onclick=()=>{const t=$('#bkMsg');const p=t.selectionStart??t.value.length;t.value=t.value.slice(0,p)+b.dataset.ins+t.value.slice(p);bk.msg=t.value;t.focus();this.preview()});
-  this.refresh(true);
- },
- refresh(){
-  if(!$('#bkAud'))return;
-  const base=S.customers.filter(c=>!c.blocked&&(c.n>0||c.since>=SHIFT0-7*DAY));const inA=c=>!bk.area||c.area===bk.area;
-  const A_=[['all','All customers','users'],['vip','VIP / frequent','crown'],['regular','Regulars','heart'],['new','New this week','sparkle'],['inactive','Inactive 30+ days','hourglass']];
-  if(bk.aud==='one'&&S.cmap[bk.one])A_.unshift(['one',S.cmap[bk.one].name,'user']);
-  $('#bkAud').innerHTML=A_.map(([id,t,i])=>{const n=id==='one'?1:(id==='all'?base:base.filter(c=>segOf(c)===id)).filter(inA).length;return `<button class="${bk.aud===id?'on':''}" data-a="${id}">${ic(i)}<b class="num">${n}</b><small>${esc(t)}</small></button>`}).join('');
-  $$('#bkAud button').forEach(b=>b.onclick=()=>{bk.aud=b.dataset.a;this.refresh()});
-  $('#bkTpl').innerHTML=TPL.map(t=>`<button class="${bk.tpl===t.id?'on':''}" data-t="${t.id}"><span class="food sm">${t.ic==='platter'||t.ic==='burger'?fi(t.ic):ic(t.ic)}</span><b>${t.t}</b><small>${t.d}</small></button>`).join('');
-  $$('#bkTpl button').forEach(b=>b.onclick=()=>{const t=TPL.find(x=>x.id===b.dataset.t);bk.tpl=t.id;bk.msg=t.msg;$('#bkMsg').value=t.msg;this.refresh()});
-  this.preview();this.sendbar();
-  $('#bkCamp').innerHTML=S.campaigns.map(c=>`<div data-k="cp${c.id}"><span class="food sm">${ic('send','sm')}</span><div class="grow"><b class="ell">${esc(c.name)}</b><div class="dim" style="font-size:12px">${esc(c.aud)} · ${dshort(c.t)}</div></div><div style="text-align:right"><b class="num">${c.sent} sent</b><div style="font-size:12px;color:var(--ok)">${Math.round(c.replied/c.sent*100)}% replied</div></div></div>`).join('');
-  settle($('#pg'));
- },
- preview(){
-  const t=TPL.find(x=>x.id===bk.tpl);const L=audList();const s=L[0]||{name:'Ahmed',area:'F.B. Area'};
-  const msg=esc(bk.msg).replaceAll('{name}',esc(s.name.split(' ')[0])).replaceAll('{area}',esc(s.area));
-  /* a thumbnail built for this message only — it lives in the phone preview */
-  $('#bkPh').innerHTML=`<div style="align-self:center;font-size:10.5px;background:#182229;color:#8696a0;padding:3px 9px;border-radius:7px">Today</div><div class="ph-msg"><div class="ban" style="background:${t.bg}">
-   <div class="art">${t.art.map(a=>`<svg viewBox="0 0 24 24"><use href="#${a}"/></svg>`).join('')}</div>
-   <div class="shade"></div><img class="wm" src="${logoSrc()}" alt="">
-   <div class="big">${esc(t.ban)}<small>${esc(t.sub)}</small></div></div><p>${msg}</p><time>${t12(now())} ✓✓</time><div class="cta">Reply to order</div></div>`;
-  $('#bkLen').textContent=bk.msg.length+'/320';
-  const stp=bk.sending?3:bk.msg.trim().length>8?2:1;
-  $('#bkSteps').innerHTML=['Choose audience','Pick message','Preview','Send'].map((x,i)=>`${i?`<span class="ln ${i<=stp?'on':''}"><b></b></span>`:''}<span class="s ${i<=stp?'on':''}"><i>${i+1}</i><span>${x}</span></span>`).join('');
- },
- sendbar(){
-  const n=audList().length;const sb=$('#bkSend');if(bk.sending)return;
-  sb.innerHTML=`<div class="grow" style="min-width:200px"><b>${n} customer${n===1?'':'s'}</b> <span class="dim">· ${esc(TPL.find(x=>x.id===bk.tpl).t)} · delivery number</span>${S.set.wa?'':'<div style="color:var(--bad);font-size:12.5px;margin-top:2px">WhatsApp is disconnected. Reconnect it in Settings to send.</div>'}</div>
-   <div class="seg"><button class="${bk.when==='now'?'on':''}" data-w="now">Send now</button><button class="${bk.when==='later'?'on':''}" data-w="later">Tonight 9 PM</button></div>
-   <button class="btn pri lg" id="bkGo" ${!n||!S.set.wa?'disabled':''}>${ic('send')}${bk.when==='now'?`Send to ${n}`:`Schedule for ${n}`}</button>`;
-  $$('[data-w]',sb).forEach(b=>b.onclick=()=>{bk.when=b.dataset.w;this.sendbar()});
-  $('#bkGo').onclick=()=>{
-   const L=audList(),t=TPL.find(x=>x.id===bk.tpl);
-   if(bk.when==='later'){S.campaigns.unshift({id:'cp'+Date.now(),name:t.t+' (scheduled)',aud:this.audName(),sent:0,replied:0,t:now()});toast('Campaign scheduled',`${L.length} customers · tomorrow 9:00 PM`,{icon:'calendar',tone:'ok'});this.refresh();return}
-   bk.sending=true;this.preview();
-   sb.innerHTML=`<div class="grow" style="min-width:200px"><b>Sending… <span class="num" id="bkN">0</span> / ${L.length}</b><div class="dim" style="font-size:12.5px">Messages go out a few per second so WhatsApp does not flag the number.</div></div><div class="prog"><i id="bkPr"></i></div>`;
-   let i=0;const step=()=>{i=Math.min(L.length,i+Math.max(1,Math.ceil(L.length/40)));$('#bkN')&&($('#bkN').textContent=i);$('#bkPr')&&($('#bkPr').style.width=(i/L.length*100)+'%');
-    if(i<L.length)return setTimeout(step,70);
-    const camp={id:'cp'+Date.now(),name:t.t,aud:this.audName(),sent:L.length,replied:0,t:now()};S.campaigns.unshift(camp);bk.sending=false;
-    toast('Campaign sent',`${L.length} customers got “${t.t}”`,{icon:'send',tone:'ok'});
-    // replies trickle back in as new WhatsApp chats
-    const rep=Math.max(1,Math.round(L.length*.3));let r=0;const tr=setInterval(()=>{if(r>=rep){clearInterval(tr);return}r++;camp.replied++;if(r<=2&&S.set.wa)newChat({c:pick(L),kind:'delivery',campaign:t.t});changed()},3200);
-    if(cur==='bulk')this.refresh()};setTimeout(step,300)};
- },
- audName(){return {all:'All customers',vip:'VIP / frequent',regular:'Regulars',new:'New this week',inactive:'Inactive 30+ days',one:S.cmap[bk.one]?.name||'One customer'}[bk.aud]+(bk.area?' · '+bk.area:'')}
 };
 
 /* ================= MENU ================= */
@@ -1770,6 +1774,7 @@ PAGES.settings={
 
 /* ================= COMING SOON ================= */
 const soon=(title,lines)=>({render(el){el.innerHTML=`<div class="soon-wrap"><div class="soon-bg">${'<div></div>'.repeat(8)}</div><div class="soon-c"><span class="badge">Coming soon</span><h2>${title}</h2><p>We're cooking this one. Here is what it will do:</p><ul>${lines.map(l=>`<li>${ic('check','sm')}${l}</li>`).join('')}</ul><button class="btn" id="soonBack">${ic('back','sm')}Back to dashboard</button></div></div>`;$('#soonBack').onclick=()=>go('dash')}});
+PAGES.bulk=soon('Bulk Message',['Write one offer and send it to a whole group of customers at once','Pick who gets it: regulars, VIPs, a single area, or everyone who has gone quiet','A live preview of exactly how it lands on their phone','Replies come straight back into Live Conversations as new chats','See how many were sent, how many replied, and what each campaign earned']);
 PAGES.kitchen=soon('Kitchen Screen',['A big ticket screen for the cooks, meant for a tablet on the wall','Tickets appear the moment you approve an order, oldest first','Tap an item as it is plated so nothing gets missed','A timer on every ticket that turns amber, then red','One tap marks the order ready and tells the counter to send a rider']);
 PAGES.reports=soon('Payments & Reports',['Cash, EasyPaisa, JazzCash and bank transfer totals by night','Rider cash hand-in history, and what each rider still owes','Works out every rider&rsquo;s daily wages automatically from the deliveries he ran','Best sellers, peak hours and area reports','Download reports as PDF or Excel']);
 PAGES.promos=soon('Promotions & Offers',['Create deals like the Family Platter','Discount codes the AI agent understands','Schedule offers for weekends and Eid','See how many orders each deal brought in']);
@@ -1794,7 +1799,8 @@ function embers(){
   const f=()=>{if(!$('#embers')||$('#login').classList.contains('out'))return;x.clearRect(0,0,W,H);P.forEach(p=>{if(!reduce){p.y-=p.v;p.s+=.012;p.x+=Math.sin(p.s)*.25}if(p.y<-10){p.y=H+10;p.x=Math.random()*W}const g=x.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*4);g.addColorStop(0,`rgba(255,160,80,${p.a})`);g.addColorStop(1,'rgba(244,123,32,0)');x.fillStyle=g;x.beginPath();x.arc(p.x,p.y,p.r*4,0,7);x.fill()});requestAnimationFrame(f)};f();
 }
 function boot(){
-  buildNav();embers();Theme.apply();Side.apply();Install.init();
+  buildNav();embers();Theme.apply();Side.apply();Install.init();Reveal.init();
+  addEventListener('load',()=>Smooth.init());
   $('#themeBtn').onclick=()=>Theme.toggle();
   /* the whole dashboard goes full screen on a double-click of the brand mark */
   $('#brandBtn').ondblclick=()=>toggleFull();
