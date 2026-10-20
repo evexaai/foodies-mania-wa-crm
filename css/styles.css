@@ -921,3 +921,80 @@ html[data-side="mini"] .side-logo .brand img{width:52px;height:52px}
 @media (prefers-reduced-motion:reduce){
   .rv,.rv.in{opacity:1;transform:none;transition:none}
 }
+
+/* ---------- kitchen: the ticket rail ---------- */
+.kd{display:grid;gap:16px}
+.kd-top{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+.kstat{display:flex;align-items:center;gap:11px;padding:11px 16px;border-radius:13px;flex:1 1 170px;
+  background:var(--panel);border:1px solid var(--line)}
+.kstat .i{color:var(--or2);flex:none}
+.kstat b{font-family:var(--f-display);font-size:22px;display:block;line-height:1.1}
+.kstat span{color:var(--mut);font-size:12.5px;line-height:1.2}
+.kwait{display:flex;align-items:center;gap:8px;padding:11px 16px;border-radius:13px;font-size:13px;font-weight:600;
+  background:var(--warnsoft);border:1px solid var(--warn);color:var(--warn);flex:1 1 220px;text-align:left}
+.kwait .i{flex:none}
+.kwait .i:last-child{margin-left:auto}
+.kd-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.tickets{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;align-content:start}
+.kd #kmt{display:none}
+
+/* a ticket is a paper docket in both themes — that is the point of it */
+.tk{background:#fbf3ea;color:#2a170b;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:0 18px 40px -22px rgba(0,0,0,.75);position:relative}
+.tk::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:8px;
+  background:radial-gradient(circle at 6px 8px,var(--ticketnotch) 5px,transparent 5.5px) 0 0/12px 8px repeat-x}
+.tk-h{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#2a170b;color:#fbf3ea}
+.tk-h .id{font-family:var(--f-mono);font-weight:600;font-size:15px}
+.tk-h .st{font-size:12px;opacity:.85;display:inline-flex;gap:4px;align-items:center}
+.tk-h .tmr{margin-left:auto;font-family:var(--f-mono);font-weight:600;font-size:16px;padding:3px 9px;border-radius:8px;
+  background:#1f9d55;color:#06210f;transition:background .5s,color .5s}
+.tk-h .tmr.w{background:#ffb648;color:#2a1700}
+.tk-h .tmr.b{background:#ff5d55;color:#fff;animation:pulse 1.6s infinite}
+.tk-m{display:flex;justify-content:space-between;padding:8px 14px;font-size:12px;color:#7a5a45;
+  border-bottom:1px dashed #e2cdb8;gap:8px}
+.tk-items{padding:8px 8px 4px;display:grid;gap:2px}
+.tk-items button{display:flex;gap:10px;align-items:flex-start;padding:9px 6px;border-radius:9px;text-align:left;
+  width:100%;transition:background .2s,opacity .3s;color:#2a170b}
+.tk-items button:hover{background:#f3e3d2}
+.tk-items .q{font-family:var(--f-display);font-weight:800;font-size:20px;min-width:34px;color:#c85d10;line-height:1}
+.tk-items .n{font-weight:700;font-size:15.5px;line-height:1.2}
+.tk-items .inote{display:inline-flex;margin-top:4px;font-size:12px;font-weight:700;background:#ffe7a3;color:#6b4200;
+  padding:2px 8px;border-radius:6px}
+.tk-items button.done{opacity:.42}
+.tk-items button.done .n{text-decoration:line-through}
+.tk-note{margin:6px 12px 2px;padding:9px 11px;border-radius:10px;background:#ffdccf;color:#8a1d07;font-weight:700;
+  font-size:13.5px;display:flex;gap:8px;align-items:flex-start;border:1.5px dashed #ef8e72}
+.tk-f{padding:12px 12px 18px;display:flex;gap:8px;margin-top:auto}
+.tk-f .btn{flex:1;height:46px;font-size:14px;border:0}
+.tk-f .b-start{background:#2a170b;color:#fbf3ea}
+.tk-f .b-ready{background:#1f9d55;color:#fff}
+.tk.leaving{animation:none;transition:transform .5s var(--ease),opacity .5s var(--ease);
+  transform:translateY(-12px) scale(.96);opacity:0}
+.pass{display:grid;gap:10px}
+.pass .oc{cursor:default}
+
+@media (max-width:1180px){ .kd-grid{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:720px){
+  /* one column at a time on a phone, picked with the tabs */
+  .kd #kmt{display:flex}
+  .kd-grid .kcol{display:none}
+  .kd-grid .kcol.mon{display:block}
+  .kstat{flex:1 1 calc(50% - 5px);padding:10px 12px;gap:9px}
+  .kstat b{font-size:19px}
+  .kstat .i.lg{width:19px;height:19px}
+  .tickets{grid-template-columns:minmax(0,1fr)}
+  .tk-f .btn{height:50px;font-size:15px}
+}
+
+/* ---------- settings: install the app ---------- */
+.appbox{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:16px;border-radius:15px;
+  background:var(--panel2);border:1px solid var(--line)}
+.appicon{width:76px;height:76px;border-radius:18px;flex:none;box-shadow:0 10px 26px -12px var(--shadow)}
+.appsteps{margin:0;padding-left:20px;display:grid;gap:8px;color:var(--mut);font-size:13.5px;line-height:1.5}
+.appsteps li::marker{color:var(--or2);font-weight:700}
+.appsteps b{color:var(--fg)}
+@media (max-width:720px){
+  .appbox{gap:12px;padding:14px}
+  .appicon{width:58px;height:58px;border-radius:14px}
+  .appbox .btn.lg{width:100%}
+}

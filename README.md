@@ -51,9 +51,11 @@ server.mjs        zero-dependency static server with live reload
   anything put in front of it. Both respect **prefers-reduced-motion**: if your
   system has animations turned off you get plain native scrolling, which is the
   correct behaviour but worth knowing if you expected the glide.
-- **Install it as an app** — the manifest and the service worker put Chrome's own
-  install icon in the address bar. There is no install button inside the app.
-  Once installed it opens in its own window and still works if the line drops.
+- **Install it as an app** — Settings → Install the app has a Download button that
+  fires the browser's own install prompt, a link to copy onto another device,
+  and the manual steps for iPhone, Android or desktop when the prompt is not
+  offered. Chrome also shows its install icon in the address bar. Once installed
+  it opens in its own window and still works if the line drops.
 - **Who is signed in decides what they see** — the login ID is matched against
   Settings → Users. The sidebar only shows the sections that user is allowed to
   open, and going anywhere else is refused. Sign in as `shahnawaz` for the owner's
@@ -146,9 +148,11 @@ Prepaid orders never enter any of it. Collected is backed by a ledger of
 hand-ins (`r.handins`) rather than a guess, so the figure and the list behind
 it always agree, even after part payments.
 
-**The Kitchen page is a coming-soon placeholder.** The real kitchen queue is the
-*In kitchen* column on the Delivery Orders board, and that is where every "sent to
-kitchen" link goes.
+**The kitchen screen** is a ticket rail: one docket per order, oldest first, a
+timer that turns amber then red, and tappable lines so a cook can strike items
+off as they are plated. Start cooking and Ready are the only two buttons. On a
+phone it collapses to a single column with the pass behind a tab. The same
+queue also shows as the *In kitchen* column on the Delivery Orders board.
 
 **Staff access** — `PERMS` lists every section of the CRM and `ROLES` gives the
 two roles, Admin and Rider, their defaults. Adding a user asks for a role and then

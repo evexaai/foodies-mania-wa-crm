@@ -648,7 +648,7 @@ function tick(){
 /* ================= router + chrome ================= */
 const NAV=[
  {id:'dash',t:'Dashboard',ic:'dash'},{id:'chats',t:'Live Conversations',ic:'chat'},{id:'orders',t:'Delivery Orders',ic:'bike'},
- {id:'riders',t:'Riders',ic:'helmet'},{id:'kitchen',t:'Kitchen',ic:'chef',soon:1},{h:'Grow'},{id:'bulk',t:'Bulk Message',ic:'send',soon:1},
+ {id:'riders',t:'Riders',ic:'helmet'},{id:'kitchen',t:'Kitchen',ic:'chef'},{h:'Grow'},{id:'bulk',t:'Bulk Message',ic:'send',soon:1},
  {id:'menu',t:'Menu Management',ic:'cloche'},{id:'customers',t:'Customers',ic:'users'},{id:'reports',t:'Payments & Reports',ic:'chart',soon:1},
  {id:'promos',t:'Promotions & Offers',ic:'tag',soon:1},{h:'Account'},{id:'settings',t:'Settings',ic:'gear'}];
 const BNAV=[{id:'dash',t:'Home',ic:'dash'},{id:'chats',t:'Chats',ic:'chat'},{id:'orders',t:'Orders',ic:'bike'},{id:'riders',t:'Riders',ic:'helmet'},{id:'more',t:'More',ic:'bars'}];
@@ -801,12 +801,30 @@ const Install={
  init(){
    if('serviceWorker' in navigator)
      addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
-   /* Chrome puts its own install icon in the address bar once the manifest and
-      this worker are in place — the app does not add a button of its own. */
-   addEventListener('appinstalled',()=>
-     toast('Installed','Foodies Mania CRM now opens from your home screen',{icon:'check',tone:'ok'}));
+   /* Chrome also shows its own install icon in the address bar; this keeps the
+      same prompt so Settings can offer a proper button for it. */
+   addEventListener('beforeinstallprompt',e=>{e.preventDefault();this.evt=e;
+     if(cur==='settings'&&setSec==='app')PAGES.settings.body()});
+   addEventListener('appinstalled',()=>{this.evt=null;
+     toast('Installed','Foodies Mania CRM now opens from your home screen',{icon:'check',tone:'ok'});
+     if(cur==='settings'&&setSec==='app')PAGES.settings.body()});
  },
- standalone(){try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}}
+ /* fire the real prompt; resolves to what the person chose */
+ async prompt(){
+   const e=this.evt;if(!e)return 'unavailable';
+   this.evt=null;
+   try{e.prompt();const c=await e.userChoice;return c&&c.outcome||'dismissed'}
+   catch(err){return 'failed'}
+ },
+ can(){return !!this.evt},
+ standalone(){try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}},
+ /* iOS never fires the prompt, so tell them where the button actually is */
+ platform(){
+   const u=navigator.userAgent||'';
+   if(/iPhone|iPad|iPod/i.test(u))return 'ios';
+   if(/Android/i.test(u))return 'android';
+   return 'desktop';
+ }
 };
 function toggleFull(){
   const d=document.documentElement;
@@ -1655,7 +1673,7 @@ function userForm(u,after,mode){
 PAGES.settings={
  render(el,opts){
   if(opts.sec)setSec=opts.sec;
-  const secs=[['wa','WhatsApp','wa'],['take','Takeaway number','take'],['biz','Business & hours','store'],['areas','Delivery areas','pin'],['users','Users & logins','users'],['voice','Notifications & voice','sound'],['demo','Demo','play']];
+  const secs=[['wa','WhatsApp','wa'],['app','Install the app','down'],['take','Takeaway number','take'],['biz','Business & hours','store'],['areas','Delivery areas','pin'],['users','Users & logins','users'],['voice','Notifications & voice','sound'],['demo','Demo','play']];
   el.innerHTML=`<div class="set"><div class="set-nav" id="setNav">${secs.map(s=>`<button data-s="${s[0]}" class="${setSec===s[0]?'on':''}">${ic(s[2])}${s[1]}</button>`).join('')}</div><div class="set-body" id="setB"></div></div>`;
   $$('#setNav button').forEach(b=>b.onclick=()=>{setSec=b.dataset.s;$$('#setNav button').forEach(x=>x.classList.toggle('on',x===b));this.body()});
   this.body();
@@ -1681,6 +1699,43 @@ PAGES.settings={
      <a class="btn" href="https://evexaai.com" target="_blank" rel="noopener">${ic('link')}evexaai.com</a>
     </div></div>`;
    $('#waEvexa').onclick=()=>evexaModal();
+  }
+  if(setSec==='app'){
+   const on=Install.standalone(), ready=Install.can(), plat=Install.platform();
+   const HOW={
+    ios:['Open this page in Safari','Tap the Share button at the bottom','Choose <b>Add to Home Screen</b>'],
+    android:['Open the browser menu (⋮)','Choose <b>Install app</b> or <b>Add to Home screen</b>','Confirm, and it lands on your home screen'],
+    desktop:['Look for the install icon at the right of the address bar','Or open the browser menu and choose <b>Install Foodies Mania CRM</b>','It opens in its own window from then on']
+   }[plat];
+   B.innerHTML=`<div class="card enter"><div class="card-h"><h3>${ic('down')}Install the app</h3>${on?'<span class="tag t-delivered sp">'+ic('check')+'Installed</span>':''}</div>
+    <p class="muted" style="margin:0 0 16px">Put Foodies Mania CRM on the home screen of a phone or on a desktop, so it opens in its own window with no address bar — and keeps working if the line drops.</p>
+    <div class="appbox">
+     <img class="appicon" src="assets/icon.svg" alt="">
+     <div class="grow" style="min-width:200px">
+      <b style="font-size:16px">Foodies Mania CRM</b>
+      <div class="dim" style="font-size:12.5px">${on?'Running as an installed app right now.':ready?'Your browser is ready to install it.':'Installs from your browser menu — see the steps below.'}</div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:12px">
+       ${on?'':`<button class="btn pri lg" id="appGo" ${ready?'':'disabled'}>${ic('down')}Download the app</button>`}
+       <button class="btn" id="appCopy">${ic('copy')}Copy the link</button></div>
+     </div></div>
+    ${on?'':`<div class="sec" style="margin-top:18px"><h4>${plat==='ios'?'On an iPhone or iPad':plat==='android'?'On Android':'On a computer'}</h4>
+      <ol class="appsteps">${HOW.map(h=>`<li>${h}</li>`).join('')}</ol></div>`}
+    <div class="srow" style="margin-top:6px"><div class="t"><b>Works without a signal</b><small>Once installed, the screens still open on a weak line — only live updates wait for the connection.</small></div>${ic('shield')}</div>
+   </div>`;
+   const g=$('#appGo');
+   if(g)g.onclick=async()=>{
+     g.disabled=true;g.innerHTML=ic('clock')+'Opening…';
+     const out=await Install.prompt();
+     if(out==='accepted')toast('Installing','Look for Foodies Mania on your home screen',{icon:'check',tone:'ok'});
+     else if(out==='unavailable')toast('Use the browser menu','Your browser did not offer the prompt — follow the steps below',{icon:'alert'});
+     else toast('Not installed','You can start it again any time from here',{icon:'down'});
+     this.body();
+   };
+   $('#appCopy').onclick=async()=>{
+     try{await navigator.clipboard.writeText(location.origin+location.pathname);
+       toast('Link copied','Open it on the phone you want to install it on',{icon:'copy',tone:'ok'})}
+     catch(e){toast('Copy it from the address bar','Clipboard access was refused',{icon:'alert',tone:'bad'})}
+   };
   }
   if(setSec==='take'){
    B.innerHTML=`<div class="card enter"><div class="card-h"><h3>${ic('take')}Takeaway number</h3></div><p class="muted" style="margin:0 0 14px">When a customer picks Takeaway, the AI agent sends this number and ends the chat. The dashboard counts how many customers received it.</p>
@@ -1772,10 +1827,76 @@ PAGES.settings={
  }
 };
 
+/* ================= KITCHEN =================
+   A ticket rail for the cooks. One job per card, oldest first, a timer that
+   turns amber then red, and two buttons big enough for floury hands. On a
+   phone it becomes a single column with the pass behind a tab. */
+const struck=new Set();
+let kTab='cook';
+PAGES.kitchen={
+ render(el){
+  el.innerHTML=`<div class="kd" id="kd">
+   <div class="kd-top" id="kstats"></div>
+   <div class="mob-tabs" id="kmt">
+     <button class="chip ${kTab==='cook'?'on':''}" data-kt="cook">Tickets <b id="kcn">0</b></button>
+     <button class="chip ${kTab==='pass'?'on':''}" data-kt="pass">At the pass <b id="kpn">0</b></button></div>
+   <div class="kd-grid">
+    <div class="kcol" data-col="cook"><div class="tickets" id="tix"></div></div>
+    <div class="kcol" data-col="pass"><div class="card"><div class="card-h"><h3>${ic('helmet')}At the pass</h3><span class="dim sp" style="font-size:12px">Ready, waiting for a rider</span></div><div class="pass" id="pass"></div></div></div>
+   </div></div>`;
+  $$('#kmt button',el).forEach(b=>b.onclick=()=>{kTab=b.dataset.kt;this.refresh()});
+  /* one handler for the whole rail: tick an item off, start it, or send it out */
+  $('#tix').onclick=e=>{
+   const t=e.target.closest('[data-tk]');if(!t)return;
+   const id=t.dataset.tk;
+   const it=e.target.closest('[data-it]');
+   const b=e.target.closest('[data-kx]');
+   if(it){const key=id+':'+it.dataset.it;struck.has(key)?struck.delete(key):struck.add(key);it.classList.toggle('done');return}
+   if(!b)return;
+   if(b.dataset.kx==='start')A.start(id);
+   else{t.classList.add('leaving');setTimeout(()=>A.ready(id),420)}
+  };
+  this.refresh();
+ },
+ refresh(){
+  if(!$('#tix'))return;
+  const q=S.orders.filter(o=>o.status==='approved'||o.status==='preparing').sort((a,b)=>a.t.approved-b.t.approved);
+  const ready=byStatus('ready');
+  const waiting=byStatus('new').length;
+  const done=tonight().filter(o=>o.t.ready&&o.t.preparing);
+  const avg=done.length?Math.round(done.reduce((a,o)=>a+(o.t.ready-o.t.preparing),0)/done.length/MIN)+' min':'—';
+  const K=[['chef','To cook',q.filter(o=>o.status==='approved').length,''],
+           ['flame','Cooking now',q.filter(o=>o.status==='preparing').length,'var(--or2)'],
+           ['helmet','At the pass',ready.length,'var(--vio)'],
+           ['clock','Average cook time',avg,'var(--ok)']];
+  $('#kstats').innerHTML=K.map(x=>`<div class="kstat">${ic(x[0],'lg')}<div><b class="num" ${x[3]?`style="color:${x[3]}"`:''}>${x[2]}</b><span>${x[1]}</span></div></div>`).join('')
+   +(waiting?`<button class="kwait" data-go="orders">${ic('alert','sm')}${waiting} order${waiting>1?'s':''} still waiting for approval${ic('chev','sm')}</button>`:'');
+  const g=$('#kwait')||$('.kwait');if(g)g.onclick=()=>go('orders',{tab:'new'});
+  $('#kcn').textContent=q.length;$('#kpn').textContent=ready.length;
+  $$('#kmt button').forEach(b=>b.classList.toggle('on',b.dataset.kt===kTab));
+  $$('.kcol').forEach(c=>c.classList.toggle('mon',c.dataset.col===kTab));
+
+  const box=$('#tix');
+  keepScroll(box,()=>{box.innerHTML=q.length?q.map(o=>{const c=S.cmap[o.cid];
+   return `<div class="tk" data-k="tk${o.id}" data-tk="${o.id}">
+    <div class="tk-h"><span class="id">${o.id}</span>
+     <span class="st">${o.status==='preparing'?ic('flame','sm')+'Cooking':'New'}</span>
+     <span class="tmr ${tmrCls(o.t.approved)}" data-since="${o.t.approved}" data-fmt="mmss">${mmss(o.t.approved)}</span></div>
+    <div class="tk-m"><span>${esc(c.name.split(' ')[0])} · ${esc(o.area)}</span><span>In at ${t12(o.t.approved)}</span></div>
+    ${o.note?`<div class="tk-note">${ic('alert','sm')}${esc(o.note)}</div>`:''}
+    <div class="tk-items">${o.items.map((it,i)=>`<button data-it="${i}" class="${struck.has(o.id+':'+i)?'done':''}"><span class="q">${it.qty}×</span><span><span class="n">${esc(MM[it.mid].name)}</span>${it.note?`<br><span class="inote">${esc(it.note)}</span>`:''}</span></button>`).join('')}</div>
+    <div class="tk-f">${o.status==='approved'?`<button class="btn b-start" data-kx="start">${ic('flame')}Start cooking</button>`:''}<button class="btn b-ready" data-kx="ready">${ic('check')}Ready</button></div></div>`}).join('')
+   :`<div class="card empty" style="grid-column:1/-1;padding:56px 20px">${ic('chef')}<b style="color:var(--fg);font-size:16px">Kitchen is clear</b>Approved orders land here as tickets, oldest first.</div>`});
+
+  $('#pass').innerHTML=ready.length?ready.map(o=>`<div class="oc" data-k="ps${o.id}"><div class="r1"><span class="id">${o.id}</span><span class="tm">${ic('clock','sm')}<span data-since="${o.t.ready}">${ago(o.t.ready)}</span></span></div><div class="nm">${esc(custName(o))} · <span class="dim">${esc(o.area)}</span></div><button class="btn sm pri" data-as="${o.id}">${ic('helmet','sm')}Assign rider</button></div>`).join(''):`<div class="empty">${ic('helmet')}Nothing at the pass.</div>`;
+  $$('[data-as]',$('#pass')).forEach(b=>b.onclick=()=>riderPicker(b.dataset.as));
+  settle($('#kd'));
+ }
+};
+
 /* ================= COMING SOON ================= */
 const soon=(title,lines)=>({render(el){el.innerHTML=`<div class="soon-wrap"><div class="soon-bg">${'<div></div>'.repeat(8)}</div><div class="soon-c"><span class="badge">Coming soon</span><h2>${title}</h2><p>We're cooking this one. Here is what it will do:</p><ul>${lines.map(l=>`<li>${ic('check','sm')}${l}</li>`).join('')}</ul><button class="btn" id="soonBack">${ic('back','sm')}Back to dashboard</button></div></div>`;$('#soonBack').onclick=()=>go('dash')}});
 PAGES.bulk=soon('Bulk Message',['Write one offer and send it to a whole group of customers at once','Pick who gets it: regulars, VIPs, a single area, or everyone who has gone quiet','A live preview of exactly how it lands on their phone','Replies come straight back into Live Conversations as new chats','See how many were sent, how many replied, and what each campaign earned']);
-PAGES.kitchen=soon('Kitchen Screen',['A big ticket screen for the cooks, meant for a tablet on the wall','Tickets appear the moment you approve an order, oldest first','Tap an item as it is plated so nothing gets missed','A timer on every ticket that turns amber, then red','One tap marks the order ready and tells the counter to send a rider']);
 PAGES.reports=soon('Payments & Reports',['Cash, EasyPaisa, JazzCash and bank transfer totals by night','Rider cash hand-in history, and what each rider still owes','Works out every rider&rsquo;s daily wages automatically from the deliveries he ran','Best sellers, peak hours and area reports','Download reports as PDF or Excel']);
 PAGES.promos=soon('Promotions & Offers',['Create deals like the Family Platter','Discount codes the AI agent understands','Schedule offers for weekends and Eid','See how many orders each deal brought in']);
 
