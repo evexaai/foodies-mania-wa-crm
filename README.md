@@ -6,6 +6,11 @@ a rider takes it to the door.
 This is the single-file prototype (`Foodies Mania CRM.html`) split into a real
 project. No build step, no framework, no dependencies — plain HTML, CSS and JS.
 
+## The website
+
+The customer-facing ordering site, chat widget and chat-to-order page live in
+[`website/`](website/README.md). Their orders land on the Delivery Orders board.
+
 ## Run it
 
 ```sh
@@ -14,6 +19,9 @@ node server.mjs      # or: npm run dev
 
 Then open http://localhost:5500/ — the page live-reloads whenever you save a file
 under `index.html`, `css/`, `js/` or `assets/`.
+
+The website is at http://localhost:5500/website/ and the chat page at
+http://localhost:5500/website/order-chat.
 
 Set a different port with `PORT=3000 node server.mjs`.
 

@@ -3,3 +3,7 @@ dist/
 .DS_Store
 Thumbs.db
 *.log
+
+# Menu cards and posters supplied by the restaurant: reference only, not published
+website/assets/Updated Menu/
+__pycache__/

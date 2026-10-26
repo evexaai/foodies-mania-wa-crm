@@ -31,40 +31,285 @@ const mmss=ts=>{const s=Math.max(0,Math.floor((now()-ts)/1000));return String(Ma
 const nightOf=ts=>{const d=new Date(ts-15*HOUR);d.setHours(0,0,0,0);return d.getTime()};
 const hourIdx=ts=>Math.floor((ts-nightOf(ts)-15*HOUR)/HOUR);
 
-/* ================= menu (real items & prices from foodies-mania.com) ================= */
+/* ================= menu (generated from website/js/menu.js, the Foodies Mania menu cards) ================= */
 const CATS=[
  {id:'burger',name:'Burgers',ic:'burger'},{id:'pizza',name:'Pizzas',ic:'pizza'},{id:'sig',name:'Signature Pizzas',ic:'pizza'},
  {id:'roll',name:'Rolls',ic:'roll'},{id:'bbq',name:'BBQ',ic:'skewer'},{id:'fries',name:'Fries & Sides',ic:'fries'},
- {id:'special',name:'Specials',ic:'bowl'},{id:'chinese',name:'Chinese',ic:'bowl'},{id:'drink',name:'Drinks',ic:'drink'},{id:'deal',name:'Deals',ic:'platter'}]
+ {id:'special',name:'Specials',ic:'bowl'},{id:'drink',name:'Drinks',ic:'drink'},{id:'deal',name:'Deals',ic:'platter'}]
  .map(c=>({...c,avail:true}));   /* a whole category can be switched off, e.g. the BBQ man has gone home */
 const MENU_RAW=[
- ['burger','Zinger Burger',400,'zinger burger',10],['burger','Zinger Burger with Cheese',450,'cheese zinger',5],['burger','Mighty Burger',450,'mighty burger',8],
- ['burger','Smash Burger',450,'smash burger',4],['burger','Smash Spicy Burger',450,'spicy smash',3],['burger','BBQ Smoke Burger',450,'bbq smoke burger',3],
- ['burger','Steak Burger',450,'steak burger',2],['burger','Ranch Burger',450,'ranch burger',2],['burger','Hot Chek Chek Burger',450,'chek chek burger',2],
- ['burger','Chilli Sriracha Burger',450,'sriracha burger',2],['burger','Italian Burger',450,'italian burger',1],['burger','Chicken Burger',300,'chicken burger',4],
- ['burger','Beef Burger',300,'beef burger',3],['burger','Chicken Burger with Cheese',350,'cheese chicken burger',2],['burger','Beef Burger with Cheese',350,'cheese beef burger',2],
- ['pizza','Peri Peri Pizza',400,'peri peri pizza',4],['pizza','Supreme Max Pizza',400,'supreme max',3],['pizza','Bonfire Pizza',400,'bonfire pizza',3],
- ['pizza','Special Spicy & Scary Pizza',400,'spicy scary pizza',2],['pizza','Special Achari Pizza',400,'achari pizza',2],['pizza','Special Mughlai Pizza',400,'mughlai pizza',2],
- ['pizza','Butter Chicken Pizza',400,'butter chicken pizza',2],['pizza','Chicken Tikka Pizza',350,'tikka pizza',5],['pizza','Chicken Fajita Pizza',350,'fajita pizza',5],
- ['pizza','Cheese Lover Pizza',350,'cheese lover',3],['pizza','Meat Lover Pizza',350,'meat lover',2],['pizza','Chicken Tandoori Pizza',350,'tandoori pizza',2],
- ['pizza','Arabian Pizza',350,'arabian pizza',2],['pizza','Chicken Supreme Pizza',350,'chicken supreme',3],['pizza','Vegetable Pizza',350,'veg pizza',1],
- ['pizza','Chicken Malai Boti Pizza',350,'malai boti pizza',2],['pizza','Chicken Bihari Pizza',350,'bihari pizza',2],['pizza','Creamy Cheese Pizza',350,'creamy cheese pizza',2],
- ['sig','Special Mughlai Pizza (Cheesy)',800,'special mughlai',3],['sig','Chipotle Kabab Pizza',1100,'chipotle kabab',2],['sig','Chicken Seekh Kabab Pizza',1100,'seekh kabab pizza',2],
- ['sig','Supreme Sausages Pizza',1100,'sausages pizza',2],['sig','Pizza Crust',1400,'crust pizza',1],['sig','Calzone Pizza',1000,'calzone',2],['sig','4 Flavours Pizza',1000,'4 flavour pizza',2],
- ['roll','Zinger Roll',280,'zinger roll',8],['roll','Malai Boti Roll (Large)',320,'malai boti roll',5],['roll','Malai Boti Roll (Small)',220,'chota malai boti roll',3],
- ['roll','Chicken Boti Roll (Large)',300,'chicken boti roll',4],['roll','Chicken Mayo Roll (Large)',320,'mayo roll',4],['roll','Beef Boti Roll (Large)',300,'beef boti roll',3],
- ['roll','Reshmi Kabab Roll (Large)',280,'reshmi kabab roll',3],['roll','Beef Kabab Roll (Large)',260,'beef kabab roll',2],['roll','French Roll',500,'french roll',2],
- ['bbq','Chicken Tikka (Chest)',400,'chest tikka',4],['bbq','Chicken Tikka (Leg)',350,'leg tikka',3],['bbq','Malai Tikka (Chest)',430,'malai tikka',3],
- ['bbq','Cheesy Tikka (Chest)',450,'cheesy tikka',2],['bbq','Chicken Malai Boti',400,'malai boti',4],['bbq','Chicken Boti',380,'chicken boti',3],
- ['bbq','Beef Behari Boti',380,'behari boti',3],['bbq','Seekh Kabab',350,'seekh kabab',3],['bbq','Gola Kabab',380,'gola kabab',2],['bbq','Reshmi Chicken Kabab',380,'reshmi kabab',2],
- ['bbq','Cheesy Chicken Kabab',400,'cheesy kabab',2],['bbq','Paratha (Large)',100,'paratha',4],
- ['fries','Pizza Fries (Large)',450,'pizza fries large',6],['fries','Pizza Fries (Small)',350,'pizza fries',4],['fries','Mayo Fries',200,'mayo fries',5],['fries','Plain Fries',150,'fries',5],
- ['fries','Nuggets 4 pcs (Cheesy)',300,'cheesy nuggets',2],['fries','Crispy Broast (Chest)',550,'broast chest',3],['fries','Crispy Broast (Leg)',500,'broast leg',3],
- ['special','Cheesy Lava',600,'cheesy lava',6],['special','Dynamite Chicken',600,'dynamite chicken',3],['special','Arabian Spaghetti',600,'arabian spaghetti',2],
- ['special','Pasta Super',600,'pasta',2],['special','Lasagna',600,'lasagna',2],['special','Mexican Sandwich',600,'mexican sandwich',2],['special','Club Sandwich',400,'club sandwich',3],
- ['chinese','Chicken Shashlik with Fried Rice',650,'shashlik',3],['chinese','Chicken Manchurian with Fried Rice',650,'manchurian',3],
- ['drink','Cold Drink 345ml',80,'drink',6],['drink','Cold Drink 500ml',110,'500ml drink',7],['drink','Cold Drink 1 Ltr',160,'1 litre drink',4],['drink','Cold Drink 1.5 Ltr',210,'1.5 litre',5],['drink','Water (Large)',130,'pani',2],
- ['deal','Family Platter',2200,'family platter',3]];
+ ["deal","Deal 1",700,"deal 1",1],
+ ["deal","Deal 2",750,"deal 2",1],
+ ["deal","Deal 3",850,"deal 3",1],
+ ["deal","Deal 4",1000,"deal 4",1],
+ ["deal","Deal 5",900,"deal 5",1],
+ ["deal","Deal 6",1000,"deal 6",1],
+ ["deal","Deal 7",1050,"deal 7",1],
+ ["deal","Deal 8",1150,"deal 8",1],
+ ["deal","Deal 9",1250,"deal 9",1],
+ ["deal","Deal 10",1150,"deal 10",1],
+ ["deal","Deal 11",1200,"deal 11",1],
+ ["deal","Deal 12",1250,"deal 12",1],
+ ["deal","Deal 13",1350,"deal 13",1],
+ ["deal","Deal 14",1650,"deal 14",1],
+ ["deal","Deal 15",1650,"deal 15",1],
+ ["deal","Deal 16",1600,"deal 16",1],
+ ["deal","Deal 17",1700,"deal 17",1],
+ ["deal","Deal 18",1950,"deal 18",1],
+ ["deal","Deal 19",1800,"deal 19",1],
+ ["deal","Deal 20",2400,"deal 20",1],
+ ["deal","Deal 21",2750,"deal 21",1],
+ ["deal","Deal 22",3300,"deal 22",1],
+ ["deal","Family Platter",2400,"family platter",3],
+ ["deal","Couple Deal",1100,"couple",1],
+ ["deal","1 Person Deal",600,"one person",1],
+ ["deal","Blockbuster Deal",1350,"blockbuster",1],
+ ["deal","Jumper Deal",650,"jumper",1],
+ ["deal","Combo Jumper Deal",1200,"combo jumper",1],
+ ["deal","3 Zinger Burger Deal",1200,"3 zinger",1],
+ ["deal","3 Small Pizza Deal",1100,"3 small pizza",1],
+ ["deal","Summer Signature Deal",1750,"summer deal",1],
+ ["deal","Monsoon Deal",900,"monsoon",1],
+ ["deal","Chicken Tikka Combo",950,"tikka combo",1],
+ ["deal","Winter Night Deal 1",650,"winter deal 1",1],
+ ["deal","Winter Night Deal 2",1000,"winter deal 2",1],
+ ["deal","Winter Night Deal 3",1650,"winter deal 3",1],
+ ["deal","BBQ Deal 1",550,"bbq deal 1",1],
+ ["deal","BBQ Deal 2",1000,"bbq deal 2",1],
+ ["deal","BBQ Deal 3",900,"bbq deal 3",1],
+ ["deal","BBQ Deal 4",1000,"bbq deal 4",1],
+ ["deal","BBQ Deal 5",2900,"bbq deal 5",1],
+ ["deal","BBQ Deal 6",800,"bbq deal 6",1],
+ ["burger","Zinger Burger (Regular)",400,"zinger",10],
+ ["burger","Zinger Burger (With cheese)",450,"with cheese zinger",5],
+ ["burger","Chicken Burger (Regular)",300,"chicken burger",4],
+ ["burger","Chicken Burger (With cheese)",350,"with cheese chicken burger",2],
+ ["burger","Beef Burger (Regular)",300,"beef burger",3],
+ ["burger","Beef Burger (With cheese)",350,"with cheese beef burger",2],
+ ["burger","Mighty Burger",450,"mighty",8],
+ ["burger","BBQ Smoke Burger",450,"bbq burger",3],
+ ["burger","Steak Burger",450,"steak",2],
+ ["burger","Ranch Burger",450,"ranch",2],
+ ["burger","Hot Chek Chek Burger",450,"chek chek",2],
+ ["burger","Chilli Sriracha Burger",450,"sriracha",2],
+ ["burger","Italian Burger",450,"italian",1],
+ ["burger","Smash Burger",450,"smash",4],
+ ["burger","Smash Spicy Burger",450,"spicy smash",3],
+ ["pizza","Peri Peri Pizza (Small)",400,"peri peri",4],
+ ["pizza","Peri Peri Pizza (Medium)",600,"medium peri peri",2],
+ ["pizza","Peri Peri Pizza (Large)",950,"large peri peri",2],
+ ["pizza","Supreme Max Pizza (Small)",400,"supreme max",3],
+ ["pizza","Supreme Max Pizza (Medium)",600,"medium supreme max",2],
+ ["pizza","Supreme Max Pizza (Large)",950,"large supreme max",2],
+ ["pizza","Bonfire Pizza (Small)",400,"bonfire",3],
+ ["pizza","Bonfire Pizza (Medium)",600,"medium bonfire",2],
+ ["pizza","Bonfire Pizza (Large)",950,"large bonfire",2],
+ ["pizza","Tautar Sauce Pizza (Small)",400,"tartar",1],
+ ["pizza","Tautar Sauce Pizza (Medium)",600,"medium tartar",1],
+ ["pizza","Tautar Sauce Pizza (Large)",950,"large tartar",1],
+ ["pizza","Ranch Pizza (Small)",400,"ranch pizza",1],
+ ["pizza","Ranch Pizza (Medium)",600,"medium ranch pizza",1],
+ ["pizza","Ranch Pizza (Large)",950,"large ranch pizza",1],
+ ["pizza","Special Spicy & Saucy Pizza (Small)",400,"spicy saucy",1],
+ ["pizza","Special Spicy & Saucy Pizza (Medium)",600,"medium spicy saucy",1],
+ ["pizza","Special Spicy & Saucy Pizza (Large)",950,"large spicy saucy",1],
+ ["pizza","Special Achari Pizza (Small)",400,"achari",2],
+ ["pizza","Special Achari Pizza (Medium)",600,"medium achari",1],
+ ["pizza","Special Achari Pizza (Large)",950,"large achari",1],
+ ["pizza","Special Mughlai Pizza (Small)",400,"mughlai",2],
+ ["pizza","Special Mughlai Pizza (Medium)",600,"medium mughlai",1],
+ ["pizza","Special Mughlai Pizza (Large)",950,"large mughlai",1],
+ ["pizza","Butter Chicken Pizza (Small)",400,"butter chicken",2],
+ ["pizza","Butter Chicken Pizza (Medium)",600,"medium butter chicken",1],
+ ["pizza","Butter Chicken Pizza (Large)",950,"large butter chicken",1],
+ ["pizza","Chicken Tandoori Pizza (Small)",350,"tandoori",2],
+ ["pizza","Chicken Tandoori Pizza (Medium)",550,"medium tandoori",1],
+ ["pizza","Chicken Tandoori Pizza (Large)",900,"large tandoori",1],
+ ["pizza","Chicken Fajita Pizza (Small)",350,"fajita",5],
+ ["pizza","Chicken Fajita Pizza (Medium)",550,"medium fajita",3],
+ ["pizza","Chicken Fajita Pizza (Large)",900,"large fajita",3],
+ ["pizza","Chicken Hot & Spicy Pizza (Small)",350,"hot and spicy",1],
+ ["pizza","Chicken Hot & Spicy Pizza (Medium)",550,"medium hot and spicy",1],
+ ["pizza","Chicken Hot & Spicy Pizza (Large)",900,"large hot and spicy",1],
+ ["pizza","Chicken Shawarma Pizza (Small)",350,"shawarma pizza",1],
+ ["pizza","Chicken Shawarma Pizza (Medium)",550,"medium shawarma pizza",1],
+ ["pizza","Chicken Shawarma Pizza (Large)",900,"large shawarma pizza",1],
+ ["pizza","Chicken Supreme Pizza (Small)",350,"chicken supreme",3],
+ ["pizza","Chicken Supreme Pizza (Medium)",550,"medium chicken supreme",2],
+ ["pizza","Chicken Supreme Pizza (Large)",900,"large chicken supreme",2],
+ ["pizza","Chicken Tikka Pizza (Small)",350,"tikka pizza",5],
+ ["pizza","Chicken Tikka Pizza (Medium)",550,"medium tikka pizza",3],
+ ["pizza","Chicken Tikka Pizza (Large)",900,"large tikka pizza",3],
+ ["pizza","Chicken Malai Boti Pizza (Small)",350,"malai boti pizza",2],
+ ["pizza","Chicken Malai Boti Pizza (Medium)",550,"medium malai boti pizza",1],
+ ["pizza","Chicken Malai Boti Pizza (Large)",900,"large malai boti pizza",1],
+ ["pizza","Chicken Bihari Pizza (Small)",350,"bihari pizza",2],
+ ["pizza","Chicken Bihari Pizza (Medium)",550,"medium bihari pizza",1],
+ ["pizza","Chicken Bihari Pizza (Large)",900,"large bihari pizza",1],
+ ["pizza","Chicken Afghani Pizza (Small)",350,"afghani",1],
+ ["pizza","Chicken Afghani Pizza (Medium)",550,"medium afghani",1],
+ ["pizza","Chicken Afghani Pizza (Large)",900,"large afghani",1],
+ ["pizza","Spanish Salsa Pizza (Small)",350,"spanish salsa",1],
+ ["pizza","Spanish Salsa Pizza (Medium)",550,"medium spanish salsa",1],
+ ["pizza","Spanish Salsa Pizza (Large)",900,"large spanish salsa",1],
+ ["pizza","Italian Classic Pizza (Small)",350,"italian classic",1],
+ ["pizza","Italian Classic Pizza (Medium)",550,"medium italian classic",1],
+ ["pizza","Italian Classic Pizza (Large)",900,"large italian classic",1],
+ ["pizza","Meat Lover Pizza (Small)",350,"meat lover",2],
+ ["pizza","Meat Lover Pizza (Medium)",550,"medium meat lover",1],
+ ["pizza","Meat Lover Pizza (Large)",900,"large meat lover",1],
+ ["pizza","Cheese Lover Pizza (Small)",350,"cheese lover",3],
+ ["pizza","Cheese Lover Pizza (Medium)",550,"medium cheese lover",2],
+ ["pizza","Cheese Lover Pizza (Large)",900,"large cheese lover",2],
+ ["pizza","Asian Beef Pepperoni Pizza (Small)",350,"pepperoni",1],
+ ["pizza","Asian Beef Pepperoni Pizza (Medium)",550,"medium pepperoni",1],
+ ["pizza","Asian Beef Pepperoni Pizza (Large)",900,"large pepperoni",1],
+ ["pizza","Mayo Lover Pizza (Small)",350,"mayo lover",1],
+ ["pizza","Mayo Lover Pizza (Medium)",550,"medium mayo lover",1],
+ ["pizza","Mayo Lover Pizza (Large)",900,"large mayo lover",1],
+ ["pizza","Vegetable Pizza (Small)",350,"veg pizza",1],
+ ["pizza","Vegetable Pizza (Medium)",550,"medium veg pizza",1],
+ ["pizza","Vegetable Pizza (Large)",900,"large veg pizza",1],
+ ["pizza","Arabian Pizza (Small)",350,"arabian",2],
+ ["pizza","Arabian Pizza (Medium)",550,"medium arabian",1],
+ ["pizza","Arabian Pizza (Large)",900,"large arabian",1],
+ ["pizza","Arabian Feast Pizza (Small)",350,"arabian feast",1],
+ ["pizza","Arabian Feast Pizza (Medium)",550,"medium arabian feast",1],
+ ["pizza","Arabian Feast Pizza (Large)",900,"large arabian feast",1],
+ ["pizza","BBQ Tikka Pizza (Small)",350,"bbq tikka pizza",1],
+ ["pizza","BBQ Tikka Pizza (Medium)",550,"medium bbq tikka pizza",1],
+ ["pizza","BBQ Tikka Pizza (Large)",900,"large bbq tikka pizza",1],
+ ["pizza","Fajita Sensation Pizza (Small)",350,"fajita sensation",1],
+ ["pizza","Fajita Sensation Pizza (Medium)",550,"medium fajita sensation",1],
+ ["pizza","Fajita Sensation Pizza (Large)",900,"large fajita sensation",1],
+ ["pizza","Chicken Fiesta Pizza (Small)",350,"fiesta",1],
+ ["pizza","Chicken Fiesta Pizza (Medium)",550,"medium fiesta",1],
+ ["pizza","Chicken Fiesta Pizza (Large)",900,"large fiesta",1],
+ ["pizza","Creamy Cheese Pizza (Small)",350,"creamy cheese",2],
+ ["pizza","Creamy Cheese Pizza (Medium)",550,"medium creamy cheese",1],
+ ["pizza","Creamy Cheese Pizza (Large)",900,"large creamy cheese",1],
+ ["pizza","Super Creamy Pizza (Small)",350,"super creamy",1],
+ ["pizza","Super Creamy Pizza (Medium)",550,"medium super creamy",1],
+ ["pizza","Super Creamy Pizza (Large)",900,"large super creamy",1],
+ ["sig","Chipotle Kabab Pizza",1100,"chipotle",2],
+ ["sig","Chicken Seekh Kabab Pizza",1100,"seekh kabab pizza",2],
+ ["sig","Supreme Sausages Pizza",1100,"sausage",2],
+ ["sig","Pizza Crust",1400,"crust",1],
+ ["sig","Calzone 2 Pizza",1000,"calzone",1],
+ ["sig","4 Flavours in 1 Pizza",1000,"4 flavour",1],
+ ["roll","Zinger Roll",280,"zinger roll",8],
+ ["roll","Reshmi Kabab Roll (Small)",180,"reshmi roll",3],
+ ["roll","Reshmi Kabab Roll (Large)",280,"large reshmi roll",2],
+ ["roll","Malai Boti Roll (Small)",220,"malai boti roll",5],
+ ["roll","Malai Boti Roll (Large)",320,"large malai boti roll",3],
+ ["roll","Beef Boti Roll (Small)",200,"beef boti roll",3],
+ ["roll","Beef Boti Roll (Large)",300,"large beef boti roll",2],
+ ["roll","Chicken Boti Roll (Small)",200,"chicken boti roll",4],
+ ["roll","Chicken Boti Roll (Large)",300,"large chicken boti roll",2],
+ ["roll","Chicken Mayo Roll (Small)",220,"mayo roll",4],
+ ["roll","Chicken Mayo Roll (Large)",320,"large mayo roll",2],
+ ["roll","Beef Kabab Roll (Small)",180,"beef kabab roll",2],
+ ["roll","Beef Kabab Roll (Large)",260,"large beef kabab roll",1],
+ ["bbq","Chicken Tikka (Leg)",350,"tikka",4],
+ ["bbq","Chicken Tikka (Chest)",430,"chest tikka",2],
+ ["bbq","Malai Tikka (Leg)",400,"malai tikka",3],
+ ["bbq","Malai Tikka (Chest)",450,"chest malai tikka",2],
+ ["bbq","Cheesy Tikka (Leg)",400,"cheesy tikka",2],
+ ["bbq","Cheesy Tikka (Chest)",450,"chest cheesy tikka",1],
+ ["bbq","Chicken Boti",400,"chicken boti",3],
+ ["bbq","Chicken Malai Boti",450,"malai boti",4],
+ ["bbq","Beef Boti",400,"beef boti",1],
+ ["bbq","Beef Bihari Boti",400,"behari",1],
+ ["bbq","Seekh Kabab",400,"seekh",3],
+ ["bbq","Dhaga Kabab",400,"dhaga",1],
+ ["bbq","Gola Kabab",400,"gola",2],
+ ["bbq","Reshmi Chicken Kabab",400,"reshmi kabab",2],
+ ["bbq","Cheesy Chicken Kabab",450,"cheesy kabab",2],
+ ["bbq","Chandan Kabab",450,"chandan",1],
+ ["bbq","Kabab Fry",500,"kabab fry",1],
+ ["fries","Pizza Fries (Small)",350,"pizza fries",6],
+ ["fries","Pizza Fries (Large)",450,"large pizza fries",3],
+ ["fries","Mayo Fries",200,"mayo fries",5],
+ ["fries","Plain Fries",150,"fries",5],
+ ["fries","Garlic Bread (2 pcs)",100,"garlic bread",1],
+ ["fries","Garlic Bread (4 pcs)",200,"4 pcs garlic bread",1],
+ ["fries","Cheesy Garlic Bread (2 pcs)",150,"cheesy garlic bread",1],
+ ["fries","Cheesy Garlic Bread (4 pcs)",300,"4 pcs cheesy garlic bread",1],
+ ["special","Foodies Pide",650,"pide",1],
+ ["special","Kuku Fries",1000,"kuku",1],
+ ["special","Cheesy Lava",600,"lava",6],
+ ["special","French Roll",500,"french roll",2],
+ ["special","Club Sandwich",400,"club",3],
+ ["special","Mexican Sandwich",600,"mexican",2],
+ ["special","Pasta Super",600,"pasta",2],
+ ["special","Lasagna",600,"lasagna",2],
+ ["special","Arabian Spaghetti",600,"spaghetti",2],
+ ["special","Dynamite Chicken",600,"dynamite",3],
+ ["special","Crispy Broast (Leg)",500,"broast",3],
+ ["special","Crispy Broast (Chest)",550,"chest broast",2],
+ ["drink","Orange Juice",300,"orange",1],
+ ["drink","Musambi Juice",300,"musambi",1],
+ ["drink","Grape Fruit Juice",250,"grape fruit",1],
+ ["drink","Annar Juice",500,"annar",1],
+ ["drink","Tarbooz Juice",250,"tarbooz",1],
+ ["drink","Pineapple Juice",300,"pineapple juice",1],
+ ["drink","Pinacolada Juice",350,"pinacolada juice",1],
+ ["drink","Apple Juice",300,"apple juice",1],
+ ["drink","Falsa Juice",250,"falsa",1],
+ ["drink","Strawberry Juice",250,"strawberry juice",1],
+ ["drink","Lemon Mint",200,"lemon mint",1],
+ ["drink","Lemon Mint Margarita",350,"lemonmint margreeta",1],
+ ["drink","Fruit Cocktail",300,"cocktail",1],
+ ["drink","Carrot Juice",200,"carrot",1],
+ ["drink","ABC Juice",300,"abc",1],
+ ["drink","Peach Juice",300,"peach juice",1],
+ ["drink","Banana Shake",200,"banana shake",1],
+ ["drink","Mango Shake",300,"mango shake",1],
+ ["drink","Strawberry Shake",300,"strawberry shake",1],
+ ["drink","Pineapple Shake",300,"pineapple shake",1],
+ ["drink","Chikko Shake",250,"chikko",1],
+ ["drink","Injeer Shake",300,"injeer",1],
+ ["drink","Injeer Khajoor Shake",300,"injeer khajoor",1],
+ ["drink","Chocolate Cocktail Shake",300,"chocolate cocktail",1],
+ ["drink","Pinacolada Shake",450,"pinacolada shake",1],
+ ["drink","Oreo Chocolate Shake",400,"oreo shake",1],
+ ["drink","Protein Shake",450,"protein",1],
+ ["drink","Pista Shake",380,"pista shake",1],
+ ["drink","Badam Shake",380,"badam",1],
+ ["drink","Special Shake",450,"special shake",1],
+ ["drink","Peach Shake",300,"peach shake",1],
+ ["drink","Mango Ice-cream Shake",300,"mango ice cream shake",1],
+ ["drink","Strawberry Ice-cream Shake",300,"strawberry ice cream shake",1],
+ ["drink","Vanilla Ice-cream Shake",300,"vanilla shake",1],
+ ["drink","Pineapple Ice-cream Shake",300,"pineapple ice cream shake",1],
+ ["drink","Blueberry Ice-cream Shake",300,"blueberry",1],
+ ["drink","Pista Ice Cream (Single scoop)",120,"pista ice cream",1],
+ ["drink","Pista Ice Cream (Double scoop)",200,"double scoop pista ice cream",1],
+ ["drink","Tutty Fruity Ice Cream (Single scoop)",120,"tutty fruity",1],
+ ["drink","Tutty Fruity Ice Cream (Double scoop)",200,"double scoop tutty fruity",1],
+ ["drink","Chocolate Ice Cream (Single scoop)",120,"chocolate ice cream",1],
+ ["drink","Chocolate Ice Cream (Double scoop)",200,"double scoop chocolate ice cream",1],
+ ["drink","Vanilla Ice Cream (Single scoop)",120,"vanilla ice cream",1],
+ ["drink","Vanilla Ice Cream (Double scoop)",200,"double scoop vanilla ice cream",1],
+ ["drink","Oreo Ice Cream (Single scoop)",120,"oreo ice cream",1],
+ ["drink","Oreo Ice Cream (Double scoop)",200,"double scoop oreo ice cream",1],
+ ["drink","Special Faluda",400,"special faluda",1],
+ ["drink","Sada Faluda",300,"sada faluda",1],
+ ["drink","Cold Coffee",350,"cold coffee",1],
+ ["drink","Cold Drink (345ml)",80,"drink",1],
+ ["drink","Cold Drink (500ml)",110,"500ml drink",1],
+ ["drink","Cold Drink (1 Ltr)",160,"1 ltr drink",1],
+ ["drink","Cold Drink (1.5 Ltr)",210,"1.5 ltr drink",1],
+ ["drink","Water (Small)",70,"water",2],
+ ["drink","Water (Large)",130,"large water",1],
+ ["bbq","Paratha (Small)",60,"paratha",4],
+ ["bbq","Paratha (Large)",100,"large paratha",2],
+ ["pizza","Extra Cheese Topping (Small)",50,"extra cheese",1],
+ ["pizza","Extra Cheese Topping (Regular)",70,"regular extra cheese",1],
+ ["pizza","Extra Cheese Topping (Large)",100,"large extra cheese",1],
+ ["pizza","Extra Meat Topping (Small)",50,"extra meat",1],
+ ["pizza","Extra Meat Topping (Regular)",70,"regular extra meat",1],
+ ["pizza","Extra Meat Topping (Large)",100,"large extra meat",1]];
 const MENU=MENU_RAW.map((r,i)=>({id:'m'+i,cat:r[0],name:r[1],price:r[2],say:r[3],pop:r[4],avail:true}));
 const MM={};MENU.forEach(m=>MM[m.id]=m);
 const CM={};CATS.forEach(c=>CM[c.id]=c);
@@ -99,7 +344,7 @@ const S={orders:[],omap:{},customers:[],cmap:{},riders:[],chats:[],notifs:[],cam
   {id:'u2',name:'Kashif Ali',login:'kashif',pass:'counter12',on:true,role:'admin',perms:['dash','chats','orders','riders','customers','bulk']},
   {id:'u4',name:'Hamza Qureshi',login:'hamza',pass:'bike#44',on:true,role:'rider',riderId:'r0',perms:null},
   {id:'u5',name:'Nadia Siddiqui',login:'nadia',pass:'desk2025',on:true,role:'admin',perms:['dash','chats','orders','customers']}],
- set:{wa:true,waNo:'+92 335 2115129',takeNo:'0335-2115129',biz:'Foodies Mania',addr:'Shop 1, R12, Block 8, Federal B Area, Alyabad, near Tabba Heart Hospital, Karachi',phone:'021-37226172',open:'15:00',close:'05:00',
+ set:{wa:true,waNo:'+92 335 2115129',takeNo:'0312-0755760',biz:'Foodies Mania',addr:'Shop 1, R12, Block 8, Federal B Area, Alyabad, near Tabba Heart Hospital, Karachi',phone:'021-37226172',open:'15:00',close:'05:00',
    voice:true,pop:true,lang:'en',vol:.9,voiceName:'',ev:{newChat:true,newOrder:true,needsHuman:true,kitchenReady:true,assigned:true,delivered:true,late:true,takeaway:false,wa:true},sim:true,autoKitchen:false,
    /* what the AI sends when a customer picks Takeaway. {number} is swapped for the takeaway number. */
    takeMsg:'Takeaway ke liye please humare takeaway number par WhatsApp/call karein:\n📞 {number}\nWo aap ka order ready rakhenge. Shukriya!'}};
@@ -231,7 +476,7 @@ S.campaigns=[
  {id:'cp5',name:'Mighty Burger Rs 450',aud:'Regulars · F.B. Area',sent:148,replied:51,t:SHIFT0-1*DAY+5*HOUR},
  {id:'cp4',name:'Cheesy Lava',aud:'VIP / frequent',sent:72,replied:34,t:SHIFT0-4*DAY+6*HOUR},
  {id:'cp3',name:'Late Night Cravings',aud:'Frequent buyers',sent:96,replied:37,t:SHIFT0-2*DAY+6*HOUR},
- {id:'cp2',name:'Family Platter Rs 2,200',aud:'All customers',sent:388,replied:82,t:SHIFT0-6*DAY+4*HOUR},
+ {id:'cp2',name:'Family Platter Rs 2,400',aud:'All customers',sent:388,replied:82,t:SHIFT0-6*DAY+4*HOUR},
  {id:'cp6',name:'Eid Mubarak',aud:'All customers',sent:402,replied:118,t:SHIFT0-9*DAY+7*HOUR},
  {id:'cp1',name:'We miss you',aud:'Inactive 30+ days',sent:41,replied:9,t:SHIFT0-13*DAY+5*HOUR}];
 /* ================= voice + chime ================= */
@@ -363,7 +608,7 @@ function notify(kind,title,sub,link,opt={}){
 
 /* ================= change bus (batched, no full re-render) ================= */
 let _chg=false;
-function changed(){if(_chg)return;_chg=true;requestAnimationFrame(()=>{_chg=false;refreshChrome();PAGES[cur]&&PAGES[cur].refresh&&PAGES[cur].refresh();
+function changed(){if(_chg)return;_chg=true;requestAnimationFrame(()=>{_chg=false;WEB.sync();refreshChrome();PAGES[cur]&&PAGES[cur].refresh&&PAGES[cur].refresh();
   if(drawerOrder&&$('#drawer').classList.contains('on')){const d=$('#drawer .dw-b');const t=d?d.scrollTop:0;orderDrawer(drawerOrder);const d2=$('#drawer .dw-b');if(d2)d2.scrollTop=t}})}
 const tmrCls=ts=>{const m=mins(ts);return m>=20?'b':m>=12?'w':''};
 const seen=new Set();
@@ -433,7 +678,7 @@ const A={
    toast('Order cancelled',o.id+' · '+custName(o),{icon:'x',tone:'bad'});changed()},
  start(id){const o=S.omap[id];if(!o||o.status!=='approved')return;o.status='preparing';o.t.preparing=now();changed()},
  ready(id){const o=S.omap[id];if(!o||!['approved','preparing'].includes(o.status))return;if(!o.t.preparing)o.t.preparing=now();o.status='ready';o.t.ready=now();
-   notify('kitchenReady',`${o.id} is ready`,`${custName(o)} · ${o.area} · assign a rider`,{page:'riders'},{icon:'chef',tone:'vio'})},
+   notify('kitchenReady',`${o.id} is ready`,o.pickup?`${custName(o)} · Pickup · hand it over at the counter`:`${custName(o)} · ${o.area} · assign a rider`,{page:'riders'},{icon:'chef',tone:'vio'})},
  assign(id,rid){const o=S.omap[id],r=S.riders.find(x=>x.id===rid);if(!o||!r)return;o.status='out';o.t.out=now();o.rider=rid;r.orders.push(id);r.status='busy';
    o.dueAt=Date.now()+ri(70,120)*1000;
    const ch=S.chats.find(c=>c.orderId===id);if(ch)pushMsg(ch,'ai',`Aap ka order raste mein hai! Rider ${r.name.split(' ')[0]} (${r.phone}) aap tak pohoch raha hai.`);
@@ -447,6 +692,10 @@ const A={
    applyDelivered(o);
    const ch=S.chats.find(c=>c.orderId===id);if(ch){pushMsg(ch,'ai','Order deliver ho gaya! Foodies Mania choose karne ka shukriya. Have some more! 🧡');ch.state='done'}
    notify('delivered',`${o.id} delivered`,`${r?r.name.split(' ')[0]:'Rider'} · ${custName(o)} · ${rs(o.total)}${o.pay==='COD'?' cash collected':''}`,{page:'orders',order:id},{icon:'check',tone:'ok'})},
+ /* a pickup order leaves with the customer, not a rider */
+ handover(id){const o=S.omap[id];if(!o||!o.pickup||!['approved','preparing','ready'].includes(o.status))return;
+   if(!o.t.ready)o.t.ready=now();o.status='delivered';o.t.delivered=now();if(o.pay==='COD')o.paid=true;applyDelivered(o);
+   notify('delivered',`${o.id} collected`,`${custName(o)} picked it up · ${rs(o.total)}${o.pay==='COD'?' cash taken':''}`,{page:'orders',order:id},{icon:'take',tone:'ok'})},
  markPaid(id){const o=S.omap[id];o.paid=true;toast('Payment marked received',`${o.id} · ${payName[o.pay]} · ${rs(o.total)}`,{icon:'wallet',tone:'ok'});changed()},
  /* the owner types in what he actually counted, so a short hand-in stays on the books */
  settle(rid,amt){const r=S.riders.find(x=>x.id===rid);const got=Math.max(0,Math.min(r.cash,Math.round(amt)));
@@ -465,6 +714,69 @@ const A={
      {icon:c.avail?'check':'block',tone:c.avail?'ok':'bad'});changed()},
  setWA(on){S.set.wa=on;if(!on){notify('wa','WhatsApp disconnected','New chats and AI replies are paused until you reconnect',{page:'settings',sec:'wa'},{icon:'unlink',tone:'bad'})}else{Voice.say('wa',false,1);toast('WhatsApp connected','AI agent is replying to customers again',{icon:'wa',tone:'ok'});changed()}}
 };
+
+/* ================= website orders =================
+   The Foodies Mania website (website/) runs on this same origin. A customer's
+   order is queued in localStorage (fm.web.queue) and announced on the
+   BroadcastChannel "fm-web"; we take it from either and drop it on the board
+   like any other order. Every status change goes back the same way
+   (fm.web.status), so the customer's tracker on the site moves as you work. */
+const WEB={
+ ch:('BroadcastChannel' in window)?new BroadcastChannel('fm-web'):null,
+ sent:{},
+ SRC:{web:'Website',widget:'Site chat',chat:'Chat page'},
+ read(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},
+ write(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}},
+ start(){
+   if(this.ch)this.ch.onmessage=e=>{if(e.data&&e.data.type==='order')this.take()};
+   addEventListener('storage',e=>{if(e.key==='fm.web.queue')this.take()});
+   this.take();
+ },
+ /* the website names dishes, the board needs menu ids; a dish or size the CRM
+    has not seen yet is added to the menu so the kitchen sees exactly what was ordered */
+ mid(line){
+   const name=line.name+(line.size?` (${line.size})`:'');
+   const hit=MENU.find(m=>m.name.toLowerCase()===name.toLowerCase()&&m.price===line.price);
+   if(hit)return hit.id;
+   const m={id:'w'+MENU.length,cat:CM[line.cat]?line.cat:'deal',name,price:line.price,say:name.toLowerCase(),pop:0,avail:true};
+   MENU.push(m);MM[m.id]=m;return m.id;
+ },
+ customer(w){
+   const dg=String(w.phone).replace(/\D/g,'').replace(/^0/,'');
+   let c=S.customers.find(x=>x.phone.replace(/\D/g,'').replace(/^92/,'')===dg);
+   if(!c){c={id:'cw'+S.customers.length,name:w.name,phone:'+92 '+dg.slice(0,3)+' '+dg.slice(3),area:w.type==='pickup'?'F.B. Area':w.area,addr:w.addr,since:now(),w:1,n:0,spent:0,first:null,last:0,fav:{},note:'',blocked:false,pays:{}};
+     S.customers.push(c);S.cmap[c.id]=c}
+   else if(w.type!=='pickup'){c.area=w.area;c.addr=w.addr}
+   return c;
+ },
+ take(){
+   const q=this.read('fm.web.queue',[]);if(!q.length)return;
+   this.write('fm.web.queue',[]);
+   q.forEach(w=>{
+     if(S.omap[w.id])return;
+     const c=this.customer(w);const pickup=w.type==='pickup';
+     const o=calc({id:w.id,cid:c.id,items:w.items.map(l=>({mid:this.mid(l),qty:l.qty,note:l.note||''})),note:[w.note,w.txn?'TID '+w.txn:''].filter(Boolean).join(' · '),
+       area:pickup?'Pickup':w.area,addr:w.addr,fee:w.fee||0,pay:w.pay,paid:false,status:'new',t:{placed:now()},rider:null,src:w.src,web:true,pickup,txn:w.txn||'',shot:w.shot||''});
+     addOrder(o);
+     notify('newOrder',`New ${this.SRC[w.src]||'website'} order ${o.id}`,`${c.name} · ${pickup?'Pickup':o.area} · ${rs(o.total)}`,{page:'orders',order:o.id},{icon:pickup?'take':'store'});
+     if(S.set.autoKitchen)setTimeout(()=>A.approve(o.id,true),5000);
+   });
+   changed();
+ },
+ /* tell the website what moved since last time */
+ sync(){
+   let map=null;
+   S.orders.forEach(o=>{if(!o.web||this.sent[o.id]===o.status)return;
+     this.sent[o.id]=o.status;map=map||this.read('fm.web.status',{});
+     const r=S.riders.find(x=>x.id===o.rider);
+     const msg={type:'status',id:o.id,status:o.status,pickup:!!o.pickup,rider:r?r.name:'',riderPhone:r?r.phone:'',t:Date.now()};
+     map[o.id]=msg;this.ch&&this.ch.postMessage(msg)});
+   if(map)this.write('fm.web.status',map);
+ }
+};
+/* long form in the drawer, short on a board card */
+const srcTag=(o,short)=>!o.web?'':short?`<span class="tag t-take">${o.pickup?'Pickup':'Web'}</span>`:`<span class="tag t-take">${o.pickup?'Pickup':'Delivery'} · ${WEB.SRC[o.src]||'Website'}</span>`;
+const stTagO=o=>o.pickup&&o.status==='ready'?'<span class="tag t-ready">Ready for pickup</span>':stTag(o.status);
 
 /* ================= live chats (AI agent simulation) ================= */
 const GREET=['Assalam o Alaikum','Hi','AoA bhai','Hello, order karna hai','Salam, menu bhej dein','Hey Foodies Mania!','Bhai order lena hai',
@@ -616,6 +928,7 @@ function runScript(ch,steps){
 /* ================= simulation loop ================= */
 let simTimer=null;
 function simStart(){
+  WEB.start();
   // stagger the riders already on the road
   S.orders.filter(o=>o.status==='out').forEach((o,i)=>o.dueAt=Date.now()+(55+i*40)*1000);
   setTimeout(()=>newChat({kind:'delivery'}),5000);
@@ -629,7 +942,7 @@ function simStart(){
   setInterval(()=>{
     if(!S.set.sim||!isRider())return;
     const r=myRider();if(!r||r.status==='off'||r.orders.length>=3)return;
-    const ready=byStatus('ready')[0];if(!ready)return;
+    const ready=byStatus('ready').find(o=>!o.pickup);if(!ready)return;
     A.assign(ready.id,r.id);
   },38000);
   setInterval(tick,1000);
@@ -852,21 +1165,22 @@ function confirmBox(title,sub,okText,fn,danger){modal(`<div class="md-h"><div cl
 let drawerOrder=null;
 function orderDrawer(id){
   const o=S.omap[id];if(!o)return;drawerOrder=id;const c=S.cmap[o.cid];const r=S.riders.find(x=>x.id===o.rider);
-  const steps=[['placed','Order placed by AI agent'],['approved','Approved, sent to kitchen'],['preparing','Kitchen started cooking'],['ready','Ready, waiting for rider'],['out','Out for delivery'+(r?' · '+r.name:'')],['delivered','Delivered']];
-  const order=['new','approved','preparing','ready','out','delivered'];const si=order.indexOf(o.status);
+  const steps=o.pickup?[['placed','Order placed on the '+(WEB.SRC[o.src]||'website').toLowerCase()],['approved','Approved, sent to kitchen'],['preparing','Kitchen started cooking'],['ready','Ready at the counter'],['delivered','Collected by customer']]
+    :[['placed',o.web?'Order placed on the '+(WEB.SRC[o.src]||'website').toLowerCase():'Order placed by AI agent'],['approved','Approved, sent to kitchen'],['preparing','Kitchen started cooking'],['ready','Ready, waiting for rider'],['out','Out for delivery'+(r?' · '+r.name:'')],['delivered','Delivered']];
+  const order=o.pickup?['new','approved','preparing','ready','delivered']:['new','approved','preparing','ready','out','delivered'];const si=order.indexOf(o.status);
   const acts={new:`<button class="btn danger" data-a="cancel">${ic('x')}Cancel</button><button class="btn pri" data-a="approve">${ic('check')}Approve → Kitchen</button>`,
     approved:`<button class="btn" data-a="kitchen">${ic('chef')}Kitchen queue</button><button class="btn pri" data-a="ready">Mark ready</button>`,
     preparing:`<button class="btn" data-a="kitchen">${ic('chef')}Kitchen queue</button><button class="btn pri" data-a="ready">Mark ready</button>`,
-    ready:`<button class="btn pri" data-a="assign">${ic('helmet')}Assign rider</button>`,
+    ready:o.pickup?`<button class="btn ok" data-a="handover">${ic('take')}Handed to customer</button>`:`<button class="btn pri" data-a="assign">${ic('helmet')}Assign rider</button>`,
     out:`<button class="btn" data-a="rider">${ic('helmet')}Riders</button><button class="btn ok" data-a="delivered">${ic('check')}Mark delivered</button>`}[o.status]||'';
   const chat=S.chats.find(x=>x.orderId===id);
-  openDrawer(`<div class="dw-h"><div class="grow"><div class="row"><h3 class="mono">${o.id}</h3>${stTag(o.status)}${isLate(o)?'<span class="tag t-late">Late</span>':''}</div><small class="muted">${dstr(o.t.placed)} · ${t12(o.t.placed)}</small></div><button class="iconbtn" data-close aria-label="Close">${ic('x')}</button></div>
+  openDrawer(`<div class="dw-h"><div class="grow"><div class="row"><h3 class="mono">${o.id}</h3>${stTagO(o)}${srcTag(o)}${isLate(o)?'<span class="tag t-late">Late</span>':''}</div><small class="muted">${dstr(o.t.placed)} · ${t12(o.t.placed)}</small></div><button class="iconbtn" data-close aria-label="Close">${ic('x')}</button></div>
   <div class="dw-b">
    <div class="box row" style="gap:12px"><div class="av ${avc(c.name)}">${ini(c.name)}</div><div class="grow"><b>${esc(c.name)}</b> ${segTag(c)}<div class="muted" style="font-size:12.5px">${c.phone} · ${c.n} orders · ${rs(c.spent)} spent</div></div><button class="btn sm" data-a="cust">Profile</button></div>
    <div class="sec"><h4>Items</h4><div class="box" style="display:grid;gap:10px">${o.items.map(it=>`<div class="row">${foodIc(it.mid,'sm')}<div class="grow"><b>${it.qty}× ${esc(MM[it.mid].name)}</b>${it.note?`<div style="color:var(--warn);font-size:12px">${esc(it.note)}</div>`:''}</div><span class="num">${rs(MM[it.mid].price*it.qty)}</span></div>`).join('')}
      ${o.note?`<div class="row" style="color:var(--warn);font-size:13px;gap:8px;padding:8px 10px;border-radius:10px;background:var(--warnsoft)">${ic('note','sm')}Kitchen note: ${esc(o.note)}</div>`:''}
-     <div class="kv"><span>Subtotal</span><b class="num">${rs(o.subtotal)}</b></div><div class="kv"><span>Delivery · ${esc(o.area)}</span><b class="num">${rs(o.fee)}</b></div><div class="kv tot"><span style="color:var(--fg)">Total</span><span class="num">${rs(o.total)}</span></div></div></div>
-   <div class="sec"><h4>Delivery & payment</h4><div class="box" style="display:grid;gap:10px"><div class="row" style="align-items:flex-start">${ic('pin')}<span>${esc(o.addr)}</span></div><div class="row">${ic(o.pay==='COD'?'cash':'wallet')}<span class="grow">${payName[o.pay]}</span>${o.paid?'<span class="tag t-delivered">Paid</span>':o.pay==='COD'?'<span class="tag">Collect on delivery</span>':`<button class="btn sm" data-a="paid">Mark payment received</button>`}</div>${r?`<div class="row">${ic('helmet')}<span class="grow">${esc(r.name)} · ${r.bike}</span><span class="dim">${r.phone}</span></div>`:''}</div></div>
+     <div class="kv"><span>Subtotal</span><b class="num">${rs(o.subtotal)}</b></div><div class="kv"><span>${o.pickup?'Pickup':'Delivery · '+esc(o.area)}</span><b class="num">${rs(o.fee)}</b></div><div class="kv tot"><span style="color:var(--fg)">Total</span><span class="num">${rs(o.total)}</span></div></div></div>
+   <div class="sec"><h4>${o.pickup?'Pickup':'Delivery'} & payment</h4><div class="box" style="display:grid;gap:10px"><div class="row" style="align-items:flex-start">${ic('pin')}<span>${esc(o.addr)}</span></div><div class="row">${ic(o.pay==='COD'?'cash':'wallet')}<span class="grow">${o.pickup&&o.pay==='COD'?'Cash at counter':payName[o.pay]}</span>${o.paid?'<span class="tag t-delivered">Paid</span>':o.pay==='COD'?`<span class="tag">${o.pickup?'Collect at counter':'Collect on delivery'}</span>`:`<button class="btn sm" data-a="paid">Mark payment received</button>`}</div>${o.txn?`<div class="row" style="font-size:13px"><span class="dim">Transaction ID</span><b class="mono" style="margin-left:auto">${esc(o.txn)}</b></div>`:''}${o.shot?`<div class="row" style="align-items:flex-start;gap:12px"><img src="${o.shot}" alt="Payment screenshot" style="width:120px;max-height:220px;object-fit:contain;border-radius:10px;border:1px solid var(--line2);background:#000"><span class="dim" style="font-size:12.5px">Payment screenshot sent by the customer. Check it, then mark the payment received.</span></div>`:''}${r?`<div class="row">${ic('helmet')}<span class="grow">${esc(r.name)} · ${r.bike}</span><span class="dim">${r.phone}</span></div>`:''}</div></div>
    ${o.status==='cancelled'?`<div class="box" style="color:var(--bad)">${esc(o.cancelReason||'Cancelled')}</div>`:`<div class="sec"><h4>Timeline</h4><div class="tl">${steps.map((s,i)=>{const ts=o.t[s[0]];const done=i===0||i<=si;return `<div><span class="k ${done?'done':i===si+1?'cur':''}">${done?ic('check'):''}</span><span>${s[1]}</span><small>${ts?t12(ts):''}</small></div>`}).join('')}</div></div>`}
   </div>
   <div class="dw-f">${chat?`<button class="btn" data-a="chat">${ic('chat')}Chat</button>`:''}${acts}</div>`,d=>{
@@ -877,6 +1191,7 @@ function orderDrawer(id){
       else if(a==='kitchen')go('orders',{tab:'kitchen'});
       else if(a==='assign')riderPicker(id,()=>orderDrawer(id));
       else if(a==='delivered'){A.delivered(id);orderDrawer(id)}
+      else if(a==='handover'){A.handover(id);orderDrawer(id)}
       else if(a==='paid'){A.markPaid(id);orderDrawer(id)}
       else if(a==='rider')go('riders');
       else if(a==='cust')go('customers',{cust:c.id});
@@ -938,7 +1253,7 @@ function riderHome(el,keep){
 /* ---------- one drop, everything about it, on a phone ---------- */
 function riderDrop(id){
   const o=S.omap[id];if(!o)return;const c=S.cmap[o.cid];
-  openDrawer(`<div class="dw-h"><div class="grow"><div class="row"><h3 class="mono">${o.id}</h3>${stTag(o.status)}</div>
+  openDrawer(`<div class="dw-h"><div class="grow"><div class="row"><h3 class="mono">${o.id}</h3>${stTagO(o)}${srcTag(o)}</div>
     <small class="muted">${esc(o.area)} · ${t12(o.t.placed)}</small></div>
     <button class="iconbtn" data-close aria-label="Close">${ic('x')}</button></div>
    <div class="dw-b">
@@ -1332,10 +1647,10 @@ function orderCard(o,col){
   const sinceKey={new:'placed',kitchen:o.status==='preparing'?'preparing':'approved',ready:'ready',out:'out'}[col];
   const acts={new:`<div class="acts"><button class="btn sm danger" data-x="cancel">${ic('x','sm')}</button><button class="btn sm pri" data-x="approve">${ic('check','sm')}Approve</button></div>`,
     kitchen:`<div class="acts"><button class="btn sm" data-x="ready">${o.status==='approved'?'Queued':'Cooking'} · mark ready</button></div>`,
-    ready:`<div class="acts"><button class="btn sm pri" data-x="assign">${ic('helmet','sm')}Assign rider</button></div>`,
+    ready:o.pickup?`<div class="acts"><button class="btn sm ok" data-x="handover">${ic('take','sm')}Handed over</button></div>`:`<div class="acts"><button class="btn sm pri" data-x="assign">${ic('helmet','sm')}Assign rider</button></div>`,
     out:`<div class="acts"><button class="btn sm ok" data-x="delivered">${ic('check','sm')}Delivered</button></div>`}[col]||'';
   return `<div class="oc ${late?'late':''}" data-k="oc${o.id}${o.status}" data-o="${o.id}" role="button" tabindex="0">
-   <div class="r1"><span class="id">${o.id}</span>${late?'<span class="tag t-late">Late</span>':''}<span class="tm">${ic('clock','sm')}${col==='delivered'?t12(o.t.delivered||o.t.cancelled):`<span data-since="${o.t[sinceKey]||o.t.placed}">${ago(o.t[sinceKey]||o.t.placed)}</span>`}</span></div>
+   <div class="r1"><span class="id">${o.id}</span>${late?'<span class="tag t-late">Late</span>':''}${srcTag(o,1)}<span class="tm">${ic('clock','sm')}${col==='delivered'?t12(o.t.delivered||o.t.cancelled):`<span data-since="${o.t[sinceKey]||o.t.placed}">${ago(o.t[sinceKey]||o.t.placed)}</span>`}</span></div>
    <div><div class="nm">${esc(custName(o))}</div><div class="dim" style="font-size:12px">${ic('pin','sm')} ${esc(o.area)}</div></div>
    <div class="it">${esc(itemsShort(o))}</div>
    ${o.note&&col!=='delivered'?`<div class="nt">${ic('note','sm')}${esc(o.note)}</div>`:''}
@@ -1355,7 +1670,7 @@ PAGES.orders={
   $('#board').onclick=e=>{const card=e.target.closest('[data-o]');if(!card)return;const id=card.dataset.o;const x=e.target.closest('[data-x]');
     if(!x)return orderDrawer(id);e.stopPropagation();const a=x.dataset.x;
     if(a==='approve')A.approve(id);else if(a==='cancel')confirmBox(`Cancel ${id}?`,`${custName(S.omap[id])} will get a WhatsApp message.`,'Cancel order',()=>A.cancel(id),1);
-    else if(a==='ready')A.ready(id);else if(a==='assign')riderPicker(id);else if(a==='delivered')A.delivered(id)};
+    else if(a==='ready')A.ready(id);else if(a==='assign')riderPicker(id);else if(a==='delivered')A.delivered(id);else if(a==='handover')A.handover(id)};
   this.refresh();if(opts.order)orderDrawer(opts.order);
  },
  open(opts){if(opts.order)orderDrawer(opts.order);if(opts.tab){ordTab=opts.tab;this.refresh()}},
