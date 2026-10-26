@@ -179,9 +179,9 @@ function myOrders(){
 
 /* ---------- hero slider ---------- */
 const HERO=[
-  [['Crispy. Cheesy.','*Have some more.'],'Hand-breaded zingers, loaded pizzas and charcoal BBQ from F.B. Area, delivered hot across Karachi until 5 AM.'],
+  [['Off the coals,','*straight to you.'],'Seekh, malai boti and Bihari tikka, charcoal-grilled every night with hot paratha.'],
   [['The cheese pull','*you came for.'],'30+ pizzas from Rs 350: Fajita, Tikka, Peri Peri and our Foodies Specials, baked fresh to order.'],
-  [['Off the coals,','*straight to you.'],'Seekh, malai boti and Bihari tikka, charcoal-grilled every night with hot paratha.']];
+  [['Crispy. Cheesy.','*Have some more.'],'Hand-breaded zingers, loaded pizzas and charcoal BBQ from F.B. Area, delivered hot across Karachi until 5 AM.']];
 /* each line clips its words, and each word rises in turn; "*" marks the gradient line */
 const heroLines=lines=>{let k=0;return lines.map(l=>{const g=l[0]==='*';const words=(g?l.slice(1):l).split(' ');
   return `<span class="ln">${words.map(w=>`<span class="w" style="animation-delay:${.08+(k++)*.07}s">${g?`<em>${esc(w)}</em>`:esc(w)}</span>`).join(' ')}</span>`}).join('')};

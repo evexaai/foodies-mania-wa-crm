@@ -9,8 +9,8 @@
 <link rel="icon" href="assets/logo.webp" type="image/webp">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="preload" as="image" href="assets/hero/burger.webp" media="(min-width:721px)">
-<link rel="preload" as="image" href="assets/hero/burger-m.webp" media="(max-width:720px)">
+<link rel="preload" as="image" href="assets/hero/bbq.webp" media="(min-width:721px)">
+<link rel="preload" as="image" href="assets/hero/bbq-m.webp" media="(max-width:720px)">
 <link rel="stylesheet" href="css/site.css">
 <link rel="stylesheet" href="css/chat.css">
 </head>
@@ -32,9 +32,9 @@
 <!-- ============ hero ============ -->
 <section class="hero" id="hero" aria-label="Foodies Mania">
   <div class="slides" id="slides">
-    <figure class="slide on"><picture><source media="(max-width:720px)" srcset="assets/hero/burger-m.webp"><img src="assets/hero/burger.webp" alt="A towering double beef burger with melted cheese and caramelised onions" fetchpriority="high"></picture></figure>
+    <figure class="slide on"><picture><source media="(max-width:720px)" srcset="assets/hero/bbq-m.webp"><img src="assets/hero/bbq.webp" alt="Seekh kababs sizzling over charcoal with smoke rising" fetchpriority="high"></picture></figure>
     <figure class="slide"><picture><source media="(max-width:720px)" srcset="assets/hero/pizza-m.webp"><img src="assets/hero/pizza.webp" alt="A hand pulling a slice of pizza with stretching mozzarella" loading="lazy"></picture></figure>
-    <figure class="slide"><picture><source media="(max-width:720px)" srcset="assets/hero/bbq-m.webp"><img src="assets/hero/bbq.webp" alt="Seekh kababs sizzling over charcoal with smoke rising" loading="lazy"></picture></figure>
+    <figure class="slide"><picture><source media="(max-width:720px)" srcset="assets/hero/burger-m.webp"><img src="assets/hero/burger.webp" alt="A towering double beef burger with melted cheese and caramelised onions" loading="lazy"></picture></figure>
   </div>
   <div class="hero-shade"></div>
   <canvas class="embers" id="embers" aria-hidden="true"></canvas>
@@ -46,7 +46,7 @@
       <a class="btn pri lg" href="#menu">Order now <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
       <a class="btn ghost lg" href="order-chat.html">Order by chat</a>
     </div>
-    <div class="hero-dots" id="dots" role="tablist" aria-label="Featured"><button class="on" aria-label="Burgers"><i></i></button><button aria-label="Pizza"><i></i></button><button aria-label="BBQ"><i></i></button></div>
+    <div class="hero-dots" id="dots" role="tablist" aria-label="Featured"><button class="on" aria-label="BBQ"><i></i></button><button aria-label="Pizza"><i></i></button><button aria-label="Burgers"><i></i></button></div>
   </div>
   <a class="scroll-cue" href="#legends" aria-label="Scroll down"><span>Scroll to taste</span><i></i></a>
 </section>
@@ -123,6 +123,7 @@
   </div>
   <div class="wrap foot-base">
     <span>© <span id="yr">2026</span> Foodies Mania. All rights reserved.</span>
+    <a class="powered" href="https://evexaai.com" target="_blank" rel="noopener">Powered by Evexa AI</a>
   </div>
 </footer>
 
