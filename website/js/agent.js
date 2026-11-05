@@ -218,7 +218,7 @@ class Agent{
 
     if(RX.reco.test(t)){say(this.L('Our crowd favourites: the *Zinger Burger*, *Mighty Burger*, *Pizza Fries* and *Cheesy Lava*. For a group, the *Family Deal* never misses. 🔥',
       'Sab se zyada pasand kiye jane wale: *Zinger Burger*, *Mighty Burger*, *Pizza Fries* aur *Cheesy Lava*. Family ke liye *Family Deal* best hai. 🔥'),{items:['b-zinger','b-mighty','f-pizzafries','x-lava','d-family']});return out}
-    if(RX.hours.test(t)){say(this.L(`We're open *every day, 3 PM to 5 AM*. 🌙`,`Hum *rozana 3 PM se subah 5 AM* tak open hain. 🌙`));return out}
+    if(RX.hours.test(t)){say(this.L(`We're open *every day, 6 PM to 5 AM*. 🌙`,`Hum *rozana 6 PM se subah 5 AM* tak open hain. 🌙`));return out}
     if(RX.where.test(t)){say(this.L(`📍 ${FM_BIZ.addr}.\nPickup is available from this counter.`,`📍 ${FM_BIZ.addr}.\nPickup isi counter se ho sakta hai.`));return out}
     if(RX.fee.test(t)){say(this.L(`Delivery is Rs 150 in F.B. Area and up to Rs 230 for areas further away (Clifton, DHA). Pickup is free.`,`F.B. Area mein delivery Rs 150 hai, door ke areas (Clifton, DHA) mein Rs 230 tak. Pickup free hai.`));return out}
     if(RX.thanks.test(t)){say(this.L('Anytime! Have some more! 🧡','Shukriya! Have some more! 🧡'));return out}

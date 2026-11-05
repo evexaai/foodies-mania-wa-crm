@@ -6,7 +6,7 @@ const calm=matchMedia('(prefers-reduced-motion:reduce)').matches;
 
 /* ---------- kitchen open? ---------- */
 function paintOpen(){const h=new Date().getHours(),o=h>=FM_BIZ.open||h<FM_BIZ.close;
-  $('#openTxt').textContent=o?'Kitchen open · till 5 AM':'Opens at 3 PM · order ahead';$('#openDot').classList.toggle('off',!o)}
+  $('#openTxt').textContent=o?'Kitchen open · till 5 AM':'Opens at 6 PM · order ahead';$('#openDot').classList.toggle('off',!o)}
 
 /* ---------- sparks rising off the grill ---------- */
 function embers(){

@@ -16,8 +16,8 @@ const FM_BIZ={
   takeaway:'0312-0755760',
   email:'shahnawazdamani5@gmail.com',
   addr:'Shop 1, R12, Block 8, Federal B Area, Alyabad, near Tabba Heart Hospital, Karachi',
-  hours:'Every day · 3 PM – 5 AM',
-  open:15, close:5,               /* 24h clock; closes after midnight */
+  hours:'Every day · 6 PM – 5 AM',
+  open:18, close:5,                /* 24h clock; closes after midnight */
   insta:'https://www.instagram.com/foodiesmania20/',
   instaHandle:'@foodiesmania20',
   map:'https://maps.google.com/?q=Foodies+Mania+Block+8+Federal+B+Area+Karachi',

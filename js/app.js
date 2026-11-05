@@ -344,7 +344,7 @@ const S={orders:[],omap:{},customers:[],cmap:{},riders:[],chats:[],notifs:[],cam
   {id:'u2',name:'Kashif Ali',login:'kashif',pass:'counter12',on:true,role:'admin',perms:['dash','chats','orders','riders','customers','bulk']},
   {id:'u4',name:'Hamza Qureshi',login:'hamza',pass:'bike#44',on:true,role:'rider',riderId:'r0',perms:null},
   {id:'u5',name:'Nadia Siddiqui',login:'nadia',pass:'desk2025',on:true,role:'admin',perms:['dash','chats','orders','customers']}],
- set:{wa:true,waNo:'+92 335 2115129',takeNo:'0312-0755760',biz:'Foodies Mania',addr:'Shop 1, R12, Block 8, Federal B Area, Alyabad, near Tabba Heart Hospital, Karachi',phone:'021-37226172',open:'15:00',close:'05:00',
+ set:{wa:true,waNo:'+92 335 2115129',takeNo:'0312-0755760',biz:'Foodies Mania',addr:'Shop 1, R12, Block 8, Federal B Area, Alyabad, near Tabba Heart Hospital, Karachi',phone:'021-37226172',open:'18:00',close:'05:00',
    voice:true,pop:true,lang:'en',vol:.9,voiceName:'',ev:{newChat:true,newOrder:true,needsHuman:true,kitchenReady:true,assigned:true,delivered:true,late:true,takeaway:false,wa:true},sim:true,autoKitchen:false,
    /* what the AI sends when a customer picks Takeaway. {number} is swapped for the takeaway number. */
    takeMsg:'Takeaway ke liye please humare takeaway number par WhatsApp/call karein:\n📞 {number}\nWo aap ka order ready rakhenge. Shukriya!'}};

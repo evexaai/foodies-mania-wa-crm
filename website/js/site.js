@@ -16,9 +16,9 @@ function paintMode(){const m=Mode.get();
 function pickMode(type){const m=Mode.get();if(m.type===type)return;Mode.set({type,area:m.area});
   toast(type==='pickup'?`Pickup from our F.B. Area counter · ready in ~${FM_BIZ.pickupEta}`:`Delivery across Karachi · ${FM_BIZ.eta}`)}
 
-/* ---------- open now? 3 PM to 5 AM ---------- */
+/* ---------- open now? 6 PM to 5 AM ---------- */
 function openNow(){const h=new Date().getHours();return h>=FM_BIZ.open||h<FM_BIZ.close}
-function paintOpen(){const o=openNow();$('#openTxt').textContent=o?'Open now · till 5 AM':'Opens today at 3 PM · order ahead';$('.hero .live-dot').classList.toggle('off',!o)}
+function paintOpen(){const o=openNow();const t=$('#openTxt');if(!t)return;t.textContent=o?'Open now · till 5 AM':'Opens today at 6 PM · order ahead';const d=t.previousElementSibling;d&&d.classList.toggle('off',!o)}
 
 /* ---------- toasts ---------- */
 function toast(text,img){const t=document.createElement('div');t.className='toast';t.innerHTML=`${img?`<img src="${img}" alt="">`:''}<span>${text}</span>`;
@@ -49,8 +49,10 @@ function cardHtml(it,i=0){
     <div class="card-f"><span class="price">${it.sizes?'<small>from</small>':''}${fmRs(it.price)}</span><span class="ctl">${ctl}</span></div></div></article>`}
 function drawMenu(){
   $('#cats').innerHTML=`<span class="cat-ind" id="catInd"></span>`+FM_CATS.map((c,i)=>`<a class="cat${i===0?' on':''}" href="#cat-${c.id}" data-cat="${c.id}">${c.name}</a>`).join('');
+  /* sections off screen are not drawn until reached; give each a close size estimate so jumps land true */
+  const cols=innerWidth>1100?4:innerWidth>720?3:2,rowH=innerWidth>720?410:330;
   $('#sections').innerHTML=FM_CATS.map((c,n)=>{const items=FM_ITEMS.filter(i=>i.cat===c.id);
-    return `<section class="sec${c.id==='deal'?' deals':''}" id="cat-${c.id}" data-sec="${c.id}"><div class="sec-h rv"><span class="sec-n">${String(n+1).padStart(2,'0')}</span><h2>${c.name}</h2><small>${items.length} items</small></div><div class="grid">${items.map(cardHtml).join('')}</div></section>`}).join('');
+    return `<section class="sec${c.id==='deal'?' deals':''}" id="cat-${c.id}" data-sec="${c.id}" style="contain-intrinsic-size:auto ${Math.ceil(items.length/cols)*rowH+160}px"><div class="sec-h rv"><span class="sec-n">${String(n+1).padStart(2,'0')}</span><h2>${c.name}</h2><small>${items.length} items</small></div><div class="grid">${items.map(cardHtml).join('')}</div></section>`}).join('');
   reveal();requestAnimationFrame(moveInd)}
 /* the gradient pill glides to the section on screen */
 function moveInd(){const a=$('.cat.on'),ind=$('#catInd');if(!a||!ind)return;ind.style.width=a.offsetWidth+'px';ind.style.transform=`translateX(${a.offsetLeft}px)`}
@@ -64,7 +66,7 @@ function setCat(cur){
 
 function search(q){q=q.trim().toLowerCase();let any=false;
   $$('.sec').forEach(s=>{let n=0;$$('.card',s).forEach(c=>{const hit=!q||q.split(/\s+/).every(w=>c.dataset.name.includes(w));c.hidden=!hit;if(hit)n++});s.hidden=!n;if(n)any=true});
-  $('#emptyQ').hidden=any;$('#emptyQt').textContent=q;$$('.rv').forEach(e=>e.classList.add('in'));window.remeasure&&remeasure()}
+  $('#emptyQ')&&($('#emptyQ').hidden=any);$('#emptyQt').textContent=q;$$('.rv').forEach(e=>e.classList.add('in'));window.remeasure&&remeasure()}
 
 /* ---------- one dish: sizes, quantity, a note ---------- */
 function itemModal(id){
@@ -209,29 +211,20 @@ function insta(){
 /* ================= motion =================
    Lenis smooths the wheel (touch stays native: a phone already scrolls well).
    Everything that moves with the scroll is measured once (and again on resize
-   or when the page grows), then one frame loop only *writes* transforms. No
-   layout is read inside the loop, which is what keeps it smooth.
-   The operating system's "reduce motion" setting is honoured: with it on, the
-   page scrolls natively and nothing drifts. */
+   or when the page grows), then one frame loop only *writes* transforms.
+   Each page has only some of these pieces; whatever is missing is skipped.
+   The operating system's "reduce motion" setting is honoured. */
 const calm=matchMedia('(prefers-reduced-motion:reduce)').matches;
 const fine=matchMedia('(hover:hover) and (pointer:fine)').matches;
-const LEGENDS=['b-zinger','b-mighty','f-pizzafries','x-lava','p-fajita'];
-
-function legends(){
-  $('#lgTrack').innerHTML=LEGENDS.map((id,i)=>{const it=FM_BYID[id];
-    return `<article class="lg-card" data-legend="${id}"><img src="${fmImg(it.img)}" alt="${esc(it.name)}" loading="lazy" decoding="async"><span class="lg-num">${String(i+1).padStart(2,'0')}</span>
-      <div class="lg-info"><h3>${esc(it.name)}</h3><p>${esc(it.desc)}</p><div class="lg-row"><span class="price">${it.sizes?'<small>from</small>':''}${fmRs(it.price)}</span><button class="btn pri">${it.sizes?'Choose':'Add to order'}</button></div></div></article>`}).join('');
-  $('#lgTrack').onclick=e=>{const c=e.target.closest('[data-legend]');if(!c)return;const it=FM_BYID[c.dataset.legend];
-    if(it.sizes||!e.target.closest('.btn'))return itemModal(it.id);Cart.add(it.id,'',1);toast(`Added ${it.name}`,fmImg(it.img))};
-}
+const PAGE=document.body.classList.contains('page-menu')?'menu':'home';
 
 /* sparks rising off the grill: one pre-drawn glow sprite, stamped with additive light */
 function embers(){
-  if(calm)return;const c=$('#embers'),x=c.getContext('2d');let W,H;const P=[];const d=1;
+  const c=$('#embers');if(calm||!c)return;const x=c.getContext('2d');let W,H;const P=[];
   const spr=document.createElement('canvas');spr.width=spr.height=32;const sx=spr.getContext('2d');
   const g=sx.createRadialGradient(16,16,0,16,16,16);g.addColorStop(0,'rgba(255,214,150,1)');g.addColorStop(.25,'rgba(255,150,60,.9)');g.addColorStop(1,'rgba(244,90,20,0)');sx.fillStyle=g;sx.fillRect(0,0,32,32);
-  const size=()=>{W=c.width=c.offsetWidth*d;H=c.height=c.offsetHeight*d};size();addEventListener('resize',size);
-  const spawn=y=>({x:Math.random()*W,y:y??H+Math.random()*H*.2,r:(Math.random()*3+3)*d,v:(Math.random()*.5+.25)*d,w:Math.random()*7,a:Math.random()*.6+.35});
+  const size=()=>{W=c.width=c.offsetWidth;H=c.height=c.offsetHeight};size();addEventListener('resize',size);
+  const spawn=y=>({x:Math.random()*W,y:y??H+Math.random()*H*.2,r:Math.random()*3+3,v:Math.random()*.5+.25,w:Math.random()*7,a:Math.random()*.6+.35});
   for(let i=0;i<(innerWidth<720?22:40);i++)P.push(spawn(Math.random()*H));
   let on=true;new IntersectionObserver(es=>on=es[0].isIntersecting).observe(c);
   const tick=()=>{if(on&&!document.hidden){x.clearRect(0,0,W,H);x.globalCompositeOperation='lighter';
@@ -241,8 +234,9 @@ function embers(){
     requestAnimationFrame(tick)};tick();
 }
 
-/* the phone in the promo types out a conversation when it comes into view */
+/* the phone types out a conversation when it comes into view */
 function phone(){
+  const ph=$('#phone');if(!ph)return;
   const ms=$$('#phB .ph-m'),ty=$('#phB .ph-typing');let played=false;
   const play=()=>{if(played)return;played=true;
     ms.forEach((m,i)=>{const t=i*1100+(m.classList.contains('bot')?500:0);
@@ -250,113 +244,197 @@ function phone(){
       setTimeout(()=>{ty.classList.remove('in');m.classList.add('in')},t)});
     setTimeout(()=>ty.classList.add('in'),ms.length*1100+400)};
   if(calm)return ms.forEach(m=>m.classList.add('in'));
-  new IntersectionObserver(es=>es.forEach(e=>e.isIntersecting&&play()),{threshold:.35}).observe($('#phone'));
-  if(fine){const st=$('#phoneStage'),ph=$('#phone');
+  new IntersectionObserver(es=>es.forEach(e=>e.isIntersecting&&play()),{threshold:.35}).observe(ph);
+  if(fine){const st=$('#phoneStage');
     st.addEventListener('pointermove',e=>{const r=st.getBoundingClientRect();const px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;ph.style.transform=`rotateY(${px*22}deg) rotateX(${-py*16}deg)`});
     st.addEventListener('pointerleave',()=>ph.style.transform='')}
 }
 
+/* ---------- Today's Special ----------
+   A line-up per night of the week (a night runs 6 PM to 5 AM, so 1 AM on
+   Saturday is still Friday's). One dish is in the spotlight; tapping any
+   pick spins it onto the plate. The day itself is not shown. */
+const SPECIALS=[
+  ['d-bbq5','d-ff22','d-family','i-falsp'],
+  ['q-malaiboti','d-bbq2','q-seekh','d-tikka'],
+  ['s-crust','sp-peri','d-ff16','f-garlicc'],
+  ['b-mighty','d-ff9','b-smash','d-cjumper'],
+  ['r-zinger','d-bbq6','r-beefkabab','m-mango'],
+  ['d-family','d-bbq5','d-ff20','d-summer'],
+  ['x-lava','s-calzone','f-pizzafries','x-pide']];
+const nightDay=()=>{const d=new Date();if(d.getHours()<FM_BIZ.close)d.setDate(d.getDate()-1);return d.getDay()};
+let spIds=[],spStar=null;
+function ctlFor(it){const q=qtyIn(it.id);
+  return it.sizes?`<button class="add" data-open="${it.id}">${q?q+' in cart · ':''}Choose</button>`
+    :q?`<div class="stepper" data-step="${it.id}"><button data-d="-1" aria-label="Remove one">−</button><span>${q}</span><button data-d="1" aria-label="Add one">+</button></div>`
+    :`<button class="add" data-add="${it.id}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>Add</button>`}
+const starCopy=h=>`<span class="sp-day">Chef’s pick tonight</span><h3>${esc(h.name)}</h3><p>${esc(h.desc)}</p>
+    <div class="sp-cta">${h.sizes?`<button class="btn pri lg" data-open="${h.id}">Choose size · from ${fmRs(h.price)}</button>`:`<button class="btn pri lg" data-add="${h.id}">Add to order · ${fmRs(h.price)}</button>`}</div>`;
+const orbitHtml=h=>`<span><small>${h.sizes?'from':'only'}</small><b>${fmRs(h.price).replace('Rs ','Rs ')}</b></span>`;
+function specials(){
+  const f=$('#spFeature');if(!f)return;spIds=SPECIALS[nightDay()];spStar=spIds[0];const h=FM_BYID[spStar];
+  f.innerHTML=`<div class="steam" aria-hidden="true"><i></i><i></i><i></i></div><div class="sp-plate in"><img src="${fmImg(h.img)}" alt="${esc(h.name)}" decoding="async"></div>
+    <div class="orbit">${orbitHtml(h)}</div><div class="sp-copy">${starCopy(h)}</div>`;
+  drawPicks()}
+function drawPicks(){
+  $('#spList').innerHTML=spIds.map(id=>{const it=FM_BYID[id];
+    return `<div class="sp-row${id===spStar?' on':''}" data-spot="${id}" data-item="${id}" tabindex="0" role="button" aria-label="Show ${esc(it.name)}"><img src="${fmImg(it.img,'-s')}" alt="" loading="lazy" decoding="async"><div><h4>${esc(it.name)}</h4><p>${esc(it.desc)}</p><span class="price">${it.sizes?'<small>from</small>':''}${fmRs(it.price)}</span></div><span class="ctl">${ctlFor(it)}</span></div>`}).join('')}
+/* the plate spins away, the new dish spins in, the price badge pops */
+function spotlight(id){
+  if(id===spStar)return;spStar=id;const h=FM_BYID[id],f=$('#spFeature'),plate=$('.sp-plate',f);
+  $$('#spList .sp-row').forEach(r=>r.classList.toggle('on',r.dataset.spot===id));
+  const swap=()=>{plate.className='sp-plate';void plate.offsetWidth;plate.querySelector('img').src=fmImg(h.img);plate.querySelector('img').alt=h.name;plate.classList.add('in');
+    const o=$('.orbit',f);o.innerHTML=orbitHtml(h);o.classList.remove('pop');void o.offsetWidth;o.classList.add('pop');
+    const c=$('.sp-copy',f);c.innerHTML=starCopy(h);c.classList.remove('swap');void c.offsetWidth;c.classList.add('swap')};
+  if(calm)return swap();
+  const pre=new Image();pre.src=fmImg(h.img);
+  plate.classList.remove('in');plate.classList.add('out');setTimeout(swap,420);
+  if(innerWidth<=1100)setTimeout(()=>window.glide&&glide($('#spFeature')),60)}
+/* the kitchen clock: time left tonight, or time until it opens */
+function clock(){
+  const k=$('#clockV');if(!k)return;const n=new Date(),h=n.getHours();const open=h>=FM_BIZ.open||h<FM_BIZ.close;
+  const t=new Date(n);if(open){if(h>=FM_BIZ.open)t.setDate(t.getDate()+1);t.setHours(FM_BIZ.close,0,0,0)}else t.setHours(FM_BIZ.open,0,0,0);
+  const s=Math.max(0,Math.floor((t-n)/1000));k.textContent=[s/3600|0,(s/60|0)%60,s%60].map(x=>String(x).padStart(2,'0')).join(':');
+  $('#clockK').textContent=open?'Kitchen closes in':'Kitchen opens in';$('#clockDot').classList.toggle('off',!open)}
+
+/* ---------- talk, and the cart builds itself ----------
+   Reads the box with the same understanding the chat uses (fmFindItems in
+   agent.js). Until someone clicks in, it types examples on its own. */
+const BD_DEMO=['2 zinger aur ek large fajita pizza','family platter and 2 mango shake','do chicken tikka chest, 4 paratha large aur cold coffee','cheesy lava, pizza fries large aur 1.5 litre drink'];
+function builder(){
+  const box=$('#builder');if(!box)return;const inp=$('#bdIn'),caret=$('#bdCaret');
+  let lines=[],auto=!calm,tmr=null,shown='';
+  const parse=txt=>{const out=[];fmFindItems(txt).found.forEach(f=>{const it=FM_BYID[f.id];const size=f.size||(it.sizes?it.sizes[0][0]:'');
+    const ex=out.find(o=>o.id===f.id&&o.size===size);if(ex)ex.qty+=f.qty;else out.push({id:f.id,size,qty:f.qty,guess:!!it.sizes&&!f.size})});return out};
+  const draw=()=>{const key=JSON.stringify(lines);if(key===shown)return;const before=JSON.parse(shown||'[]');shown=key;
+    const known=new Set(before.map(l=>l.id+'|'+l.size+'|'+l.qty));
+    $('#bdLines').innerHTML=lines.map(l=>{const it=FM_BYID[l.id],p=Cart.priceOf(l.id,l.size)*l.qty;
+      return `<div class="bd-line" style="${known.has(l.id+'|'+l.size+'|'+l.qty)?'animation:none':''}"><img src="${fmImg(it.img,'-s')}" alt=""><div><b><span class="q">${l.qty}×</span>${esc(it.name)}</b><small>${l.size?esc(l.size)+(l.guess?' · you can change the size':''):'Ready to add'}</small></div><span class="p">${fmRs(p)}</span></div>`}).join('');
+    const n=lines.reduce((a,l)=>a+l.qty,0),tot=lines.reduce((a,l)=>a+Cart.priceOf(l.id,l.size)*l.qty,0);
+    $('#bdEmpty').hidden=!!lines.length;$('#bdCount').textContent=n+(n===1?' item':' items');
+    const t=$('#bdTotal');t.textContent=fmRs(tot);t.classList.remove('tick');void t.offsetWidth;t.classList.add('tick');$('#bdGo').disabled=!lines.length};
+  const read=()=>{lines=parse(inp.value);draw()};
+  /* the caret follows the typed text while it types itself */
+  const meas=document.createElement('span');meas.style.cssText='position:absolute;visibility:hidden;white-space:pre;font:600 17px Figtree,system-ui';document.body.appendChild(meas);
+  const moveCaret=()=>{meas.textContent=inp.value;caret.style.left=(inp.offsetLeft+meas.offsetWidth+2)+'px'};
+  const stopAuto=()=>{if(!auto)return;auto=false;clearTimeout(tmr);box.classList.remove('auto');inp.value='';read()};
+  const play=(k=0)=>{if(!auto)return;const phrase=BD_DEMO[k%BD_DEMO.length];let i=0;inp.value='';read();
+    const type=()=>{if(!auto)return;inp.value=phrase.slice(0,++i);moveCaret();read();
+      if(i<phrase.length)tmr=setTimeout(type,55+Math.random()*60);else tmr=setTimeout(()=>play(k+1),2600)};tmr=setTimeout(type,500)};
+  inp.addEventListener('focus',stopAuto);inp.addEventListener('pointerdown',stopAuto);inp.addEventListener('input',read);
+  $('#bdGo').onclick=()=>{if(!lines.length)return;stopAuto();lines.forEach(l=>Cart.add(l.id,l.size,l.qty));
+    toast(`Added ${lines.reduce((a,l)=>a+l.qty,0)} items to your cart`,fmImg(FM_BYID[lines[0].id].img,'-s'));
+    box.classList.remove('done');void box.offsetWidth;box.classList.add('done')};
+  const f247=$('.feat-247');if(f247)new IntersectionObserver((es,o)=>{if(es[0].isIntersecting){f247.classList.add('in');o.disconnect()}},{threshold:.5}).observe(f247);
+  if(auto){box.classList.add('auto');new IntersectionObserver(es=>{if(es[0].isIntersecting&&auto&&!tmr)play()},{threshold:.4}).observe(box)}
+}
+
+/* ---------- the menu, as tiles that open the menu page at that section ---------- */
+const TILE_IMG={deal:'d-ff20',bbqdeal:'d-bbq5',burger:'b-mighty','special-pizza':'sp-peri',pizza:'p-fajita',sig:'s-crust',roll:'r-zinger',bbq:'q-tikka',fries:'f-pizzafries',special:'x-lava',juice:'j-orange',shake:'m-oreo',dessert:'i-falsp',addon:'k-cold'};
+function tiles(){
+  const el=$('#tiles');if(!el)return;
+  const order=['deal','burger','special-pizza','bbq','roll','shake','sig','special','juice','dessert','fries','bbqdeal'];
+  el.innerHTML=order.map(id=>{const c=FM_CATS.find(x=>x.id===id),n=FM_ITEMS.filter(i=>i.cat===id).length,it=FM_BYID[TILE_IMG[id]];
+    return `<a class="tile rv" href="menu.html#cat-${id}"><img src="${fmImg(it.img)}" alt="" loading="lazy" decoding="async"><i aria-hidden="true">→</i><b>${esc(c.name)}</b><small>${n} ${n===1?'item':'items'}</small></a>`}).join('');
+  reveal()}
+
 /* desktop only: cards light up under the cursor and the main buttons lean toward it */
 function pointerFx(){
   if(!fine||calm)return;
-  $('#sections').addEventListener('pointermove',e=>{const c=e.target.closest('.card');if(!c)return;const r=c.getBoundingClientRect();c.style.setProperty('--mx',(e.clientX-r.left)+'px');c.style.setProperty('--my',(e.clientY-r.top)+'px')},{passive:true});
-  document.addEventListener('pointermove',e=>{const b=e.target.closest('.btn.pri.lg,.cart-btn');if(!b)return;const r=b.getBoundingClientRect();
+  document.addEventListener('pointermove',e=>{const c=e.target.closest('.card');if(c){const r=c.getBoundingClientRect();c.style.setProperty('--mx',(e.clientX-r.left)+'px');c.style.setProperty('--my',(e.clientY-r.top)+'px')}
+    const b=e.target.closest('.btn.pri.lg,.cart-btn');if(!b)return;const r=b.getBoundingClientRect();
     b.style.translate=`${(e.clientX-r.left-r.width/2)*.22}px ${(e.clientY-r.top-r.height/2)*.3}px`;b.onpointerleave=()=>b.style.translate=''},{passive:true});
 }
 
 function motion(){
-  legends();embers();phone();pointerFx();
+  embers();phone();pointerFx();builder();
   if(window.Lenis&&!calm){window.lenis=new Lenis({lerp:.12,smoothWheel:true,wheelMultiplier:1});
     requestAnimationFrame(function raf(t){lenis.raf(t);requestAnimationFrame(raf)})}
+  const top=$('#top'),bar=$('#catsBar');
+  const glide=(t,instant)=>{const off=t===0?0:-((top.offsetHeight)+(t.closest&&t.closest('#menu')&&t.id!=='menu'&&bar?bar.offsetHeight:0))+1;
+    if(window.lenis)lenis.scrollTo(t,{offset:off,duration:instant?0:1.4,immediate:!!instant});else scrollTo({top:t===0?0:t.getBoundingClientRect().top+scrollY+off,behavior:instant?'auto':'smooth'})};
+  window.glide=glide;
   /* in-page links glide, and land below the header and the category bar */
   document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#"],[data-top]');if(!a||a.hasAttribute('data-track'))return;
     const h=a.hasAttribute('data-top')?'#top':a.getAttribute('href');if(h==='#')return;e.preventDefault();
-    const t=h==='#top'?0:$(h);if(t===null)return;const off=-(($('#top').offsetHeight)+(t&&t.closest&&t.closest('#menu')&&t.id!=='menu'?$('#catsBar').offsetHeight:0))+1;
-    if(window.lenis)lenis.scrollTo(t,{offset:t===0?0:off,duration:1.4});else if(t===0)scrollTo({top:0,behavior:'smooth'});else scrollTo({top:t.getBoundingClientRect().top+scrollY+off,behavior:'smooth'})});
+    const t=h==='#top'?0:$(h);if(t===null)return;glide(t);
+    if(t&&t.classList&&t.classList.contains('sec'))setTimeout(()=>{const r=t.getBoundingClientRect().top-(top.offsetHeight+(bar?bar.offsetHeight:0));if(Math.abs(r)>4)glide(t,true)},1500)});
 
-  const hero=$('#hero'),slides=$('#slides'),heroIn=$('#heroIn'),top=$('#top'),lgSec=$('#legends'),lgTrack=$('#lgTrack'),lgBar=$('#lgBar'),ins=$('.insta'),mq=$('.marquee'),bar=$('#catsBar');
-  /* marquees loop seamlessly: repeat the words until a row is over twice the screen */
-  /* marquees and the Instagram wall glide on their own (CSS, on the graphics card):
-     fill each row to over twice the screen, then set a speed in pixels per second */
+  const hero=$('#hero'),slides=$('#slides'),heroIn=$('#heroIn'),ins=$('.insta'),menu=$('#menu');
+  /* marquees glide on their own (CSS): fill each row to over twice the screen, then set a speed */
   $$('.mq-t').forEach(el=>{const one=el.innerHTML;for(let i=0;i<8&&el.scrollWidth<innerWidth*2.2;i++)el.innerHTML+=one;el.innerHTML+=el.innerHTML});
-  const speed=()=>{$$('.mq-t').forEach(el=>el.style.setProperty('--dur',(el.scrollWidth/2/70).toFixed(1)+'s'));};
-  /* the Instagram rows slide against each other as you scroll (eased, so a wheel notch glides) */
+  const speed=()=>$$('.mq-t').forEach(el=>el.style.setProperty('--dur',(el.scrollWidth/2/70).toFixed(1)+'s'));
+  /* the Instagram rows slide against each other as you scroll (eased) */
   const iw=$$('.iw-row').map(el=>({el,dir:+el.dataset.dir,w:1,x:null}));
-  const cards=$$('.lg-card',lgTrack);
   const M={};const docTop=el=>el.getBoundingClientRect().top+scrollY;
+  const last={y:-1,solid:null,cur:null,dk:null};
   function measure(){
-    M.vw=innerWidth;M.vh=innerHeight;M.heroH=hero.offsetHeight;
-    speed();iw.forEach(r=>r.w=r.el.scrollWidth/2);M.menuTop=docTop($('#menu'));M.menuBot=M.menuTop+$('#menu').offsetHeight;
-    M.lgOn=innerWidth>900;M.lgTop=docTop(lgSec);M.lgLen=Math.max(1,lgSec.offsetHeight-innerHeight);
-    M.lgMax=Math.max(0,lgTrack.scrollWidth-innerWidth+Math.max(28,(innerWidth-1280)/2+28));
-    M.cX=cards.map(c=>c.offsetLeft+c.offsetWidth/2);M.cW=cards[0]?cards[0].offsetWidth:0;
-    M.insTop=docTop(ins);M.insH=ins.offsetHeight;
+    M.vw=innerWidth;M.vh=innerHeight;M.heroH=hero?hero.offsetHeight:0;
+    speed();iw.forEach(r=>r.w=r.el.scrollWidth/2);
+    M.insTop=ins?docTop(ins):0;M.insH=ins?ins.offsetHeight:0;
     M.secs=$$('.sec').filter(x=>!x.hidden).map(x=>({id:x.dataset.sec,top:docTop(x)}));
-    M.spyLine=top.offsetHeight+bar.offsetHeight+30;
+    M.spyLine=top.offsetHeight+(bar?bar.offsetHeight:0)+30;
     last.y=-1;
   }
-  const last={y:-1,solid:null,cur:null,dk:null};
   window.remeasure=()=>requestAnimationFrame(measure);
   addEventListener('resize',()=>{measure();moveInd();paintMode()});
   addEventListener('load',measure);
-  let ro=null;new ResizeObserver(()=>{clearTimeout(ro);ro=setTimeout(measure,150)}).observe($('#sections'));
+  if(menu){let ro=null;new ResizeObserver(()=>{clearTimeout(ro);ro=setTimeout(measure,150)}).observe(menu)}
   measure();
 
-  let t0=performance.now(),vel=0,prevY=scrollY;
-  if(window.lenis)lenis.on('scroll',l=>vel=l.velocity);
+  let t0=performance.now();
   const loop=t=>{
     const dt=Math.min(64,t-t0);t0=t;
-    const y=window.lenis?lenis.scroll:scrollY;if(!window.lenis){vel=y-prevY;prevY=y}
-    const moved=y!==last.y;
+    const y=window.lenis?lenis.scroll:scrollY;const moved=y!==last.y;
     /* header: frosted glass once you leave the top */
-    const solid=y>40;if(solid!==last.solid){top.classList.toggle('solid',solid);last.solid=solid}
-    if(moved){
-      /* the category pill follows the section under the bar */
-      let cur=M.secs.length?M.secs[0].id:null;for(const x of M.secs)if(x.top-y<=M.spyLine)cur=x.id;
-      if(cur!==last.cur){last.cur=cur;setCat(cur)}
-      /* the dock lights Menu while you are in the menu, Home elsewhere */
-      const dk=y+M.vh*.5>M.menuTop&&y+M.vh*.5<M.menuBot?'menu':'home';
-      if(dk!==last.dk){last.dk=dk;$$('#dock [data-dk]').forEach(a=>a.classList.toggle('on',a.dataset.dk===dk))}
-    }
+    const solid=PAGE==='menu'||y>40;if(solid!==last.solid){top.classList.toggle('solid',solid);last.solid=solid}
+    if(moved&&M.secs.length){let cur=M.secs[0].id;for(const x of M.secs)if(x.top-y<=M.spyLine)cur=x.id;if(cur!==last.cur){last.cur=cur;setCat(cur)}}
     if(!calm){
-      /* hero: the photo sinks slower than the page, the words drift up and fade */
-      if(moved&&y<M.heroH+50){const k=Math.min(y,M.heroH);slides.style.transform=`translate3d(0,${k*.35}px,0) scale(${1+k/4000})`;heroIn.style.transform=`translate3d(0,${k*-.12}px,0)`;heroIn.style.opacity=Math.max(0,1-k/(M.heroH*.7))}
-      /* instagram wall: position follows the scroll, eased toward it every frame */
-      const iy=y-M.insTop+M.vh;if(iy>-200&&iy<M.insH+M.vh+200)iw.forEach(r=>{const tgt=(r.dir>0?-r.w/2:0)+iy*.35*r.dir;if(r.x===null)r.x=tgt;const d=tgt-r.x;if(Math.abs(d)<.1&&r.el.style.transform)return;r.x+=d*Math.min(1,dt*.012);r.el.style.transform=`translate3d(${r.x.toFixed(1)}px,0,0)`});
-      /* legends: pinned while scrolling down slides the track sideways */
-      if(moved&&M.lgOn&&y+M.vh>M.lgTop&&y<M.lgTop+M.lgLen+M.vh){const p=Math.max(0,Math.min(1,(y-M.lgTop)/M.lgLen));const tx=-p*M.lgMax;
-        lgTrack.style.transform=`translate3d(${tx.toFixed(1)}px,0,0)`;lgBar.style.transform=`scaleX(${p})`;
-        cards.forEach((c,i)=>{const k=Math.max(-1,Math.min(1,(M.cX[i]+tx-M.vw/2)/M.vw));c.firstElementChild.style.transform=`translate3d(${(k*-.1*M.cW).toFixed(1)}px,0,0)`})}
+      if(hero&&moved&&y<M.heroH+50){const k=Math.min(y,M.heroH);slides.style.transform=`translate3d(0,${k*.35}px,0) scale(${1+k/4000})`;heroIn.style.transform=`translate3d(0,${k*-.12}px,0)`;heroIn.style.opacity=Math.max(0,1-k/(M.heroH*.7))}
+      const iy=y-M.insTop+M.vh;if(ins&&iy>-200&&iy<M.insH+M.vh+200)iw.forEach(r=>{const tgt=(r.dir>0?-r.w/2:0)+iy*.35*r.dir;if(r.x===null)r.x=tgt;const d=tgt-r.x;if(Math.abs(d)<.1&&r.el.style.transform)return;r.x+=d*Math.min(1,dt*.012);r.el.style.transform=`translate3d(${r.x.toFixed(1)}px,0,0)`});
     }
     last.y=y;requestAnimationFrame(loop)};
   requestAnimationFrame(loop);
 }
+
 /* ---------- boot ---------- */
 function boot(){
-  drawMenu();paintMode();paintOpen();drawCart();insta();widget();
+  if($('#sections'))drawMenu();
+  paintMode();paintOpen();drawCart();if($('#iwall'))insta();widget();specials();clock();tiles();
+  if($('#dishN'))$('#dishN').textContent=FM_ITEMS.length;
+  if($('#stDishes')){$('#stDishes').textContent=FM_ITEMS.length;$('#stDeals').textContent=FM_ITEMS.filter(i=>/deal/.test(i.cat)).length;$('#q').placeholder=`Search ${FM_ITEMS.length} dishes`}
   $('#yr').textContent=new Date().getFullYear();
-  Cart.on(()=>{drawCart();FM_ITEMS.forEach(it=>refreshCtl(it.id));$('#cartBtn').classList.remove('bump');void $('#cartBtn').offsetWidth;$('#cartBtn').classList.add('bump')});
-  $('#sections').addEventListener('click',e=>{
+  Cart.on(()=>{drawCart();FM_ITEMS.forEach(it=>refreshCtl(it.id));$$('.sp-row[data-item]').forEach(r=>{const tmp=document.createElement('span');tmp.className='ctl';tmp.innerHTML=ctlFor(FM_BYID[r.dataset.item]);r.querySelector('.ctl').replaceWith(tmp)});
+    $('#cartBtn').classList.remove('bump');void $('#cartBtn').offsetWidth;$('#cartBtn').classList.add('bump')});
+  /* one listener for every "add", "choose" and stepper on the page */
+  document.addEventListener('click',e=>{
     const add=e.target.closest('[data-add]'),op=e.target.closest('[data-open]'),st=e.target.closest('[data-step] [data-d]');
-    if(add){e.stopPropagation();const it=FM_BYID[add.dataset.add];Cart.add(it.id,'',1);toast(`Added ${it.name}`,fmImg(it.img));return}
+    if(e.target.closest('#cw,.modal,.drawer'))return;
+    if(add){e.stopPropagation();const it=FM_BYID[add.dataset.add];Cart.add(it.id,'',1);toast(`Added ${it.name}`,fmImg(it.img,'-s'));return}
     if(st){e.stopPropagation();const id=st.closest('[data-step]').dataset.step;const l=Cart.lines().find(x=>x.id===id);Cart.setQty(id,l.size,l.qty+ +st.dataset.d);return}
     if(op){e.stopPropagation();itemModal(op.dataset.open);return}
-    const card=e.target.closest('[data-item]');if(card)itemModal(card.dataset.item)});
+    const spot=e.target.closest('[data-spot]');if(spot)return spotlight(spot.dataset.spot);
+    const card=e.target.closest('.card[data-item]');if(card)itemModal(card.dataset.item)});
+  document.addEventListener('keydown',e=>{const s=e.target.closest&&e.target.closest('[data-spot]');if(s&&(e.key==='Enter'||e.key===' ')){e.preventDefault();spotlight(s.dataset.spot)}});
   $('#cartBtn').onclick=openDrawer;$('#dkCart').onclick=openDrawer;
   $('#modeSw').onclick=e=>{const b=e.target.closest('[data-mode]');if(b)pickMode(b.dataset.mode)};
   $('#scrim').onclick=()=>{closeModal();closeDrawer()};
   $('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDrawer()}});
   $$('[data-track]').forEach(a=>a.onclick=e=>{e.preventDefault();myOrders()});
-  $('#dots').onclick=e=>{const b=e.target.closest('button');if(b)goSlide($$('#dots button').indexOf(b))};
-  $('#q').oninput=e=>search(e.target.value);
-  $('#cats').onclick=e=>{const a=e.target.closest('.cat');if(!a)return;if($('#q').value){$('#q').value='';search('')}};
+  $('#dots')&&($('#dots').onclick=e=>{const b=e.target.closest('button');if(b)goSlide($$('#dots button').indexOf(b))});
+  /* the title rises when the section arrives */
+  $('#today')&&new IntersectionObserver((es,o)=>{if(es[0].isIntersecting){$('#today').classList.add('in');o.disconnect()}},{threshold:.2}).observe($('#today'));
+  $('#q')&&($('#q').oninput=e=>search(e.target.value));
+  $('#cats')&&($('#cats').onclick=e=>{const a=e.target.closest('.cat');if(!a)return;if($('#q').value){$('#q').value='';search('')}});
   motion();
-  /* the curtain lifts once the hero photo is ready (or after a moment, whichever is first) */
-  const lift=()=>{if(document.body.classList.contains('ready'))return;document.body.classList.add('ready');goSlide(0);paintMode()};
-  const hi=$('.slide.on img');Promise.race([hi.decode?hi.decode().catch(()=>{}):Promise.resolve(),new Promise(r=>setTimeout(r,1600))]).then(()=>setTimeout(lift,calm?0:650));
-  setInterval(paintOpen,60000);
-  /* #track=FMW-123456 opens that order's tracker (the chat links here) */
+  setInterval(paintOpen,60000);setInterval(clock,1000);
+  /* the home page lifts its curtain once the hero photo is ready */
+  const lift=()=>{if(document.body.classList.contains('ready'))return;document.body.classList.add('ready');if($('#heroH'))goSlide(0);paintMode()};
+  const hi=$('.slide.on img');
+  if(hi)Promise.race([hi.decode?hi.decode().catch(()=>{}):Promise.resolve(),new Promise(r=>setTimeout(r,1600))]).then(()=>setTimeout(lift,calm?0:650));else lift();
+  /* menu.html#cat-deal lands on that section; #track=FMW-123456 opens the tracker */
+  const sec=location.hash.match(/^#(cat-[\w-]+)$/);if(sec&&$('#'+sec[1])){const go=()=>glide($('#'+sec[1]),true);[80,450,1200].forEach(t=>setTimeout(go,t))}
   const m=location.hash.match(/track=([\w-]+)/);if(m)setTimeout(()=>tracker(m[1]),900);
 }
 boot();

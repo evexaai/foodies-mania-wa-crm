@@ -228,3 +228,26 @@ body.oc .msg.bot .rcpt .trk-s:not(.done):not(.cur) b{color:var(--ink2)}
 }
 
 @media (prefers-reduced-motion:reduce){#embers{display:none}}
+
+/* ---------- light theme: a sunlit kitchen, same orange fire ---------- */
+html[data-theme="light"] body.oc{background:#fbf5ec}
+html[data-theme="light"] .glow{opacity:.28}
+html[data-theme="light"] .g2{opacity:.18}
+html[data-theme="light"] .mark{-webkit-text-stroke:1px rgba(194,65,12,.1)}
+html[data-theme="light"] .oc-status{background:#fff}
+html[data-theme="light"] .oc-icon{background:#fff}
+html[data-theme="light"] body.oc .msg.bot{background:#fff;border-color:rgba(122,58,12,.12);box-shadow:0 10px 26px -18px rgba(122,58,12,.45);backdrop-filter:none}
+html[data-theme="light"] body.oc .msg.bot b{color:#c2410c}
+html[data-theme="light"] body.oc .mc{background:#fbf5ec;border-color:rgba(122,58,12,.12)}
+html[data-theme="light"] body.oc .chat-quick button{background:#fff;color:#2a170b;border-color:rgba(194,65,12,.35);backdrop-filter:none}
+html[data-theme="light"] body.oc .chat-quick button:hover{background:var(--or);color:#1b0c03}
+html[data-theme="light"] .composer{background:#fff;border-color:rgba(122,58,12,.18);box-shadow:0 20px 44px -24px rgba(122,58,12,.45)}
+html[data-theme="light"] .cmp-btn{background:rgba(42,23,11,.05)}
+html[data-theme="light"] .crave button::after{background:linear-gradient(0deg,rgba(14,8,5,.9) 8%,rgba(14,8,5,.15) 60%,rgba(14,8,5,0))}
+html[data-theme="light"] .orb img{border-color:#fbf5ec}
+html[data-theme="light"] .ticket{filter:drop-shadow(0 30px 40px rgba(122,58,12,.3))}
+.oc-nav .theme{width:40px;height:40px}
+
+/* craving cards sit on photos: keep their words light in both themes */
+.crave span,.crave b{color:#fff}
+.crave small{color:#f1d9be}
