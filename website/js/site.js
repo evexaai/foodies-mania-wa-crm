@@ -181,9 +181,9 @@ function myOrders(){
 
 /* ---------- hero slider ---------- */
 const HERO=[
+  [['Crispy. Cheesy.','*Have some more.'],'Hand-breaded zingers, loaded pizzas and charcoal BBQ from F.B. Area, delivered hot across Karachi until 5 AM.'],
   [['Off the coals,','*straight to you.'],'Seekh, malai boti and Bihari tikka, charcoal-grilled every night with hot paratha.'],
-  [['The cheese pull','*you came for.'],'30+ pizzas from Rs 350: Fajita, Tikka, Peri Peri and our Foodies Specials, baked fresh to order.'],
-  [['Crispy. Cheesy.','*Have some more.'],'Hand-breaded zingers, loaded pizzas and charcoal BBQ from F.B. Area, delivered hot across Karachi until 5 AM.']];
+  [['The cheese pull','*you came for.'],'30+ pizzas from Rs 350: Fajita, Tikka, Peri Peri and our Foodies Specials, baked fresh to order.']];
 /* each line clips its words, and each word rises in turn; "*" marks the gradient line */
 const heroLines=lines=>{let k=0;return lines.map(l=>{const g=l[0]==='*';const words=(g?l.slice(1):l).split(' ');
   return `<span class="ln">${words.map(w=>`<span class="w" style="animation-delay:${.08+(k++)*.07}s">${g?`<em>${esc(w)}</em>`:esc(w)}</span>`).join(' ')}</span>`}).join('')};
@@ -205,7 +205,9 @@ function widget(){
 /* ---------- instagram strip ---------- */
 function insta(){
   const rows=[['b-mighty','p-fajita','q-seekh','f-pizzafries','x-lava','r-zinger','s-crust','d-bbq5'],['q-tikka','b-chek','p-tikka','x-dynamite','s-calzone','q-malaiboti','b-smash','f-garlicc']];
-  const tile=id=>{const it=FM_BYID[id];return `<a href="${FM_BIZ.insta}" target="_blank" rel="noopener" aria-label="${esc(it.name)} on Instagram"><img src="${fmImg(it.img,'-s')}" alt="${esc(it.name)}" loading="lazy" decoding="async"></a>`};
+  // The strip keeps its own photos; the menu's Canva photos don't replace them.
+  const IG={'b-mighty':5474836,'p-fajita':5639548,'q-seekh':38579058,'f-pizzafries':8254061,'x-lava':3727243,'r-zinger':25856535,'s-crust':7813574,'d-bbq5':36890237,'q-tikka':9738994,'b-chek':17121731,'p-tikka':12529119,'x-dynamite':10296240,'s-calzone':17549580,'q-malaiboti':9609850,'b-smash':38845295,'f-garlicc':9951852};
+  const tile=id=>{const it=FM_BYID[id];return `<a href="${FM_BIZ.insta}" target="_blank" rel="noopener" aria-label="${esc(it.name)} on Instagram"><img src="${fmImg(IG[id]||it.img,'-s')}" alt="${esc(it.name)}" loading="lazy" decoding="async"></a>`};
   $('#iwall').innerHTML=rows.map((r,i)=>`<div class="iw-row" data-dir="${i?1:-1}">${r.concat(r).map(tile).join('')}</div>`).join('')}
 
 /* ================= motion =================
@@ -250,7 +252,7 @@ function phone(){
     st.addEventListener('pointerleave',()=>ph.style.transform='')}
 }
 
-/* ---------- Today's Special ----------
+/* ---------- Weekly deals ----------
    A line-up per night of the week (a night runs 6 PM to 5 AM, so 1 AM on
    Saturday is still Friday's). One dish is in the spotlight; tapping any
    pick spins it onto the plate. The day itself is not shown. */
@@ -317,11 +319,14 @@ function builder(){
   /* the caret follows the typed text while it types itself */
   const meas=document.createElement('span');meas.style.cssText='position:absolute;visibility:hidden;white-space:pre;font:600 17px Figtree,system-ui';document.body.appendChild(meas);
   const moveCaret=()=>{meas.textContent=inp.value;caret.style.left=(inp.offsetLeft+meas.offsetWidth+2)+'px'};
-  const stopAuto=()=>{if(!auto)return;auto=false;clearTimeout(tmr);box.classList.remove('auto');inp.value='';read()};
+  /* after someone types and then leaves it alone for 10 s, the demo starts again */
+  let idle=null;
+  const arm=()=>{clearTimeout(idle);if(calm)return;idle=setTimeout(()=>{if(auto)return;inp.blur();auto=true;box.classList.add('auto');tmr=null;play()},10000)};
+  const stopAuto=()=>{arm();if(!auto)return;auto=false;clearTimeout(tmr);tmr=null;box.classList.remove('auto');inp.value='';read()};
   const play=(k=0)=>{if(!auto)return;const phrase=BD_DEMO[k%BD_DEMO.length];let i=0;inp.value='';read();
     const type=()=>{if(!auto)return;inp.value=phrase.slice(0,++i);moveCaret();read();
       if(i<phrase.length)tmr=setTimeout(type,55+Math.random()*60);else tmr=setTimeout(()=>play(k+1),2600)};tmr=setTimeout(type,500)};
-  inp.addEventListener('focus',stopAuto);inp.addEventListener('pointerdown',stopAuto);inp.addEventListener('input',read);
+  inp.addEventListener('focus',stopAuto);inp.addEventListener('pointerdown',stopAuto);inp.addEventListener('keydown',stopAuto);inp.addEventListener('input',()=>{arm();read()});
   $('#bdGo').onclick=()=>{if(!lines.length)return;stopAuto();lines.forEach(l=>Cart.add(l.id,l.size,l.qty));
     toast(`Added ${lines.reduce((a,l)=>a+l.qty,0)} items to your cart`,fmImg(FM_BYID[lines[0].id].img,'-s'));
     box.classList.remove('done');void box.offsetWidth;box.classList.add('done')};
@@ -348,7 +353,7 @@ function pointerFx(){
 
 function motion(){
   embers();phone();pointerFx();builder();
-  if(window.Lenis&&!calm){window.lenis=new Lenis({lerp:.12,smoothWheel:true,wheelMultiplier:1});
+  if(window.Lenis&&!calm){window.lenis=new Lenis({lerp:.1,smoothWheel:true,wheelMultiplier:1});
     requestAnimationFrame(function raf(t){lenis.raf(t);requestAnimationFrame(raf)})}
   const top=$('#top'),bar=$('#catsBar');
   const glide=(t,instant)=>{const off=t===0?0:-((top.offsetHeight)+(t.closest&&t.closest('#menu')&&t.id!=='menu'&&bar?bar.offsetHeight:0))+1;

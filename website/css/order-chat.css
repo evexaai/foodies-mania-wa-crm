@@ -18,7 +18,7 @@ body.oc.thinking .g1{opacity:.75;transition:opacity .6s}
 /* ---------- top bar ---------- */
 .oc-top{position:relative;z-index:5;display:flex;align-items:center;gap:18px;height:68px;padding:0 28px;flex:none}
 .oc-brand{display:flex;align-items:center;gap:10px}
-.oc-brand img{width:40px;height:40px;border-radius:50%;box-shadow:0 0 0 2px rgba(244,123,32,.35)}
+.oc-brand img{width:46px;height:46px;border-radius:50%;box-shadow:0 0 0 2px rgba(244,123,32,.35)}
 .oc-brand span{display:flex;flex-direction:column;line-height:1.1}
 .oc-brand b{font-family:var(--f-display);font-weight:800;font-size:18px}
 .oc-brand small{font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--or2)}
@@ -107,10 +107,10 @@ body.oc .chat-quick button:hover{background:var(--or);color:#1b0c03;border-color
 .composer .send{width:52px;height:48px;border-radius:18px;background:linear-gradient(135deg,#ffab66,#f47b20);color:#1b0c03;display:grid;place-items:center;flex:none;transition:transform .2s var(--ease),box-shadow .2s}
 .composer .send:hover{transform:scale(1.05);box-shadow:0 8px 24px -6px rgba(244,123,32,.7)}
 .dock-note{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:var(--dim)}
-.pow{display:inline-flex;align-items:center;gap:6px}
-.pow a{display:inline-flex;align-items:center;min-height:28px;padding:4px 2px}
-.pow a{display:inline-flex;align-items:center;min-height:32px;padding:0 4px}
-.pow img{height:14px;width:auto;opacity:.9}
+.pow{display:inline-flex}
+.pow a{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 11px 0 12px;border-radius:999px;background:#1a0f08;border:1px solid rgba(255,255,255,.06);color:rgba(255,236,220,.62);font-size:11px;font-weight:500;letter-spacing:.01em;text-decoration:none;box-shadow:0 2px 8px rgba(26,15,8,.14);transition:transform .25s,box-shadow .25s}
+.pow a:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(26,15,8,.2)}
+.pow img{height:12px;width:auto;display:block;transform:translateY(.5px)}
 
 /* ---------- the kitchen ticket ---------- */
 .ticket-wrap{position:relative;min-height:0;display:flex;flex-direction:column;justify-content:center;padding:6px 0 10px}

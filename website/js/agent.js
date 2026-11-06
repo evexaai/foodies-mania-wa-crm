@@ -119,7 +119,7 @@ const RX={
 };
 
 class Agent{
-  /* channel: 'widget' | 'chat' — only decides where the CRM says the order came from */
+  /* channel: 'widget' | 'chat': only decides where the CRM says the order came from */
   constructor(channel){
     this.channel=channel;this.lang='en';this.stage='browse';this.pending=[];
     this.d={type:'',name:'',phone:'',area:'',addr:'',pay:'',txn:'',note:''};
@@ -294,7 +294,7 @@ class Agent{
     if(st==='txn'){
       if(/\b(cash|cod)\b/.test(t)){this.d.pay='COD';this.d.txn='';return this.summary(out)}
       const id=raw.replace(/\s+/g,'');
-      if(id.length<6||!/\d/.test(id)){out.push({text:this.L('Please send the transaction ID from your payment receipt (usually 8–12 digits), or choose cash instead.','Payment receipt wala transaction ID bhej dein (aam tor par 8–12 digits), ya cash choose kar lein.'),quick:['Pay cash instead']});return out}
+      if(id.length<6||!/\d/.test(id)){out.push({text:this.L('Please send the transaction ID from your payment receipt (usually 8 to 12 digits), or choose cash instead.','Payment receipt wala transaction ID bhej dein (aam tor par 8 se 12 digits), ya cash choose kar lein.'),quick:['Pay cash instead']});return out}
       this.d.txn=id.slice(0,40);return this.summary(out)}
     return out}
 
