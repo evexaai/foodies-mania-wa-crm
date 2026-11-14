@@ -118,7 +118,7 @@ const repaintReceipts=()=>$$('#log .rcpt').forEach(el=>{freshRcpt=el.dataset.o;e
 
 /* ---------- the chat ---------- */
 const agent=new Agent('chat');
-const ui=ChatUI({log:$('#log'),quick:$('#quick'),form:$('#form'),input:$('#in'),agent,key:'fm.chatlog.chat',intro,
+const ui=ChatUI({log:$('#log'),quick:$('#quick'),form:$('#form'),input:$('#in'),agent,key:'fm.chatlog.chat',channel:'page',intro,
   extra:m=>m.order?`<div class="rcpt" data-o="${esc(m.order)}">${receipt(m.order)}</div>`:'',
   onTyping:on=>document.body.classList.toggle('thinking',on),
   onBot:m=>{if(m.order)placed(m.order)}});

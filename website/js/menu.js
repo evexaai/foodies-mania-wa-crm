@@ -284,3 +284,55 @@ const FM_PAY=[
 const FM_BYID={};FM_ITEMS.forEach(i=>FM_BYID[i.id]=i);
 const fmImg=(id,size='')=>`assets/food/${id}${size}.webp`;
 const fmRs=n=>'Rs '+Math.round(n).toLocaleString('en-US');
+
+/* ================= what the counter has changed tonight =================
+   The list above is the menu. This asks the server for the few things the
+   counter can change while the shop is open: an item or a whole section
+   switched off, and a changed price. It marks the items in place, so the
+   menu grid, the cart, the chat bubble and the agent all see the same thing
+   without any of them knowing where it came from.
+
+   If there is no answer, nothing is marked and the menu is simply the file,
+   which is how the site worked before any of this existed.               */
+const fmOff=it=>!!(it&&it.off);
+const FM_LIVE={
+  loaded:false, subs:new Set(),
+  /* the answer often arrives before the page has asked to hear about it, so a
+     late subscriber is told at once rather than waiting for the next load */
+  on(fn){this.subs.add(fn);if(this.loaded)try{fn()}catch(e){console.error(e)}return()=>this.subs.delete(fn)},
+  apply(d){
+    const catOff={};
+    (d.cats||[]).forEach(r=>{if(r.available===false)catOff[r.item_id]=true});
+    const byId={};(d.items||[]).forEach(r=>byId[r.item_id]=r);
+    FM_ITEMS.forEach(it=>{
+      const r=byId[it.id];
+      it.off=!!catOff[it.cat]||(r?r.available===false:false);
+      if(r&&r.price!=null){
+        const p=Number(r.price);
+        if(Number.isFinite(p)&&p>0){
+          /* a sized item quotes its smallest size, so move that one and keep
+             the steps between the sizes as they are */
+          if(it.sizes&&it.sizes.length){const d0=p-it.sizes[0][1];it.sizes=it.sizes.map(([l,v])=>[l,Math.max(0,v+d0)])}
+          it.price=p;
+        }
+      }
+    });
+    FM_CATS.forEach(c=>c.off=!!catOff[c.id]);
+    this.loaded=true;
+    this.subs.forEach(f=>{try{f()}catch(e){console.error(e)}});
+  },
+  async load(){
+    try{
+      const r=await fetch('/api/menu',{headers:{accept:'application/json'}});
+      if(!r.ok)return;
+      this.apply(await r.json());
+    }catch{}
+  },
+  start(){
+    this.load();
+    /* a sell-out mid-evening should reach an open tab without a reload */
+    setInterval(()=>{if(document.visibilityState==='visible')this.load()},45000);
+    addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')this.load()});
+  }
+};
+FM_LIVE.start();

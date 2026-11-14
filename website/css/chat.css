@@ -74,3 +74,8 @@
   .cw-h{padding-top:calc(14px + env(safe-area-inset-top))}
   .chat-in{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
 }
+
+/* A reply from the counter: the same bubble as the agent's, saying plainly
+   that this one is a person. The agent stays quiet while it is. */
+.msg.staff{border-color:rgba(244,123,32,.3);background:linear-gradient(170deg,rgba(244,123,32,.12),var(--panel2) 60%)}
+.msg .wholbl{display:block;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--or2);margin-bottom:3px}

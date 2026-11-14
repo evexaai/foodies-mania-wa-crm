@@ -1,179 +1,110 @@
-# Foodies Mania Dashboard (CRM)
+# Foodies Mania order desk
 
-WhatsApp order console: AI takes the order, you approve it, the kitchen cooks it,
-a rider takes it to the door.
+One screen for the website's orders. An order arrives, you approve it, and the
+customer sees that it is on the way. Plain HTML, CSS and JavaScript, no build
+step and no framework.
 
-This is the single-file prototype (`reference/Foodies Mania CRM (original prototype).html`)
-split into a real project. No build step, no framework, no dependencies: plain HTML, CSS and JS.
+There is no WhatsApp in this, and no riders, kitchen screen, bulk messaging,
+payments report or promotions. Those belonged to an earlier idea of what this
+was for. What is left is what the counter actually does on a shift.
 
-## Where website orders come from
+## The five pages
 
-Orders placed on the website are written to Neon and this screen reads them
-from `/api/orders`, every seven seconds while the tab is in front. That is
-what makes an order survive a closed tab: it is on the board on any computer,
-including ones placed while nobody was looking. Moving an order along writes
-the new status back, and the customer sees it on their own phone.
+| | |
+| --- | --- |
+| **Dashboard** | Tonight at a glance: what needs approving, what is out, what has been taken, what is selling |
+| **Orders** | The board. Every order, delivery and pickup, with Approve and Cancel on the card itself |
+| **Live Conversations** | The chats happening on the website right now, and a box to answer in |
+| **Menu Management** | The website's own menu, with a switch per item and per section, and the price |
+| **Customers** | One row per phone number: what they order, how often, how much |
 
-Without `DATABASE_URL` set, the API answers "no database" and the board falls
-back to orders from a website open in this same browser, which is how the demo
-has always worked. Setting up the database is in the
-[README one level up](../README.md).
+Settings holds the alert sound, installing the desk as an app, and a plain
+statement of what it is connected to.
 
-## What the controls do
+## Where everything comes from
 
-- **Light / dark mode**: the sun/moon button in the top bar. Light mode keeps the
-  same warm brand colours, just lifted, with a white working area. Behind the
-  content sits a still brand wash: two soft orange radial gradients, no movement,
-  tuned per theme with `--grad1` / `--grad2`. The sign-in screen stays dark on
-  purpose. Your choice is remembered between visits.
-- **Collapsible sidebar**: the ☰ button in the top bar. On a desktop it collapses
-  the rail to icons with just the Foodies Mania mark on top; on a phone or tablet
-  the same button opens the sidebar as a drawer, so it never collapses there.
+Nothing here is sample data. Orders, customers and conversations are read from
+the same Neon database the website writes to:
+
+| | |
+| --- | --- |
+| `GET /api/orders` | the board, with each customer's history joined on |
+| `POST /api/orders` | approve, cancel, mark delivered |
+| `GET /api/chats` | the conversations, and one in full with `?device=` |
+| `POST /api/chats` | answer in one, mark it read, or hand it back to the AI |
+| `GET /api/menu` | what has been switched off or repriced |
+| `POST /api/menu` | switch something off, or change a price |
+
+The desk asks for news every six seconds while the tab is in front, and stops
+when it is not. A change you make is sent at once and shown at once; if the
+send fails, the board goes back to what the database last said and tells you so.
+
+**Without `DATABASE_URL`** the API answers "no database" and the desk falls
+back to listening to the browser, so an order placed on a website open in the
+same browser still lands here. The header says **No database** when that
+happens. Setting the database up is in the [README one level up](../README.md).
+
+## The menu is not kept here
+
+Both the website and this desk read one file, `website/js/menu.js`, which this
+page loads before its own script. The items, prices, categories, delivery areas
+and opening hours on this screen are literally the ones the customer is
+ordering from, so the two cannot drift apart.
+
+Menu Management writes only what changes during a night, an item or a section
+switched off and a changed price, into `fm_menu`. The website re-reads that
+every forty-five seconds, so switching something off here sells it out on the
+site within seconds: the card goes grey, the Add button becomes **Sold out
+tonight**, the agent stops offering it, and if it was already in somebody's
+cart it comes out with a line telling them why.
+
+To add a dish, change a description or change a photo, edit
+`website/js/menu.js`. That file is the menu.
+
+## Taking over a conversation
+
+The chat on the website answers by itself. Every line of it, the customer's and
+the agent's, is written to the database as it is said, and that is what Live
+Conversations reads.
+
+Write a reply and the agent in their page steps aside. From then on the
+customer is talking to you, and the agent stays quiet until you press **Hand
+back to AI**. Your reply reaches their screen within about five seconds,
+labelled so they know it is a person.
+
+## Signing in
+
+Any login ID and password work. The desk sits behind the counter and the
+sign-in only keeps the board off the screen while a phone is handed round. What
+actually protects the orders is `STAFF_KEY` on the server: set it and the API
+refuses anyone without it, and the desk asks for the key once and remembers it
+on that computer.
+
+## The rest of the controls
+
+- **Light / dark**: the sun/moon button. Remembered between visits.
+- **Sidebar**: the ☰ button collapses the rail to icons on a desktop and opens
+  it as a drawer on a phone.
+- **Sound**: a chime for a new order, and the customer's name read out if that
+  is left on. A browser will not play a sound until the page has been clicked
+  once, so click anywhere at the start of a shift.
+- **Pop-ups**: every one has an x, and on a phone you can flick it away. The
+  switch in the bell panel stops them appearing without stopping the count.
 - **Full screen**: double-click the Foodies Mania mark at the top of the sidebar.
-  That is the only way in, and it takes the whole dashboard.
-- **Notifications you can get rid of**: every pop-up has an x, and on a phone you
-  can flick it to the right. Hovering one stops its timer. At most two stack on a
-  phone, three on a desktop. The switch inside the bell panel turns pop-ups off
-  altogether: alerts still land in the panel and still count on the bell, they
-  just stop appearing over your work. The bell shows a slash while that is off.
-- **Smooth scrolling**: [Lenis](https://lenis.darkroom.engineering/) drives the
-  wheel on the working area, and cards below the fold rise in as you reach them.
-  Touch is deliberately left native, because a phone already scrolls better than
-  anything put in front of it. Both respect **prefers-reduced-motion**: if your
-  system has animations turned off you get plain native scrolling, which is the
-  correct behaviour but worth knowing if you expected the glide.
-- **Install it as an app**: Settings → Install the app has a Download button that
-  fires the browser's own install prompt, a link to copy onto another device,
-  and the manual steps for iPhone, Android or desktop when the prompt is not
-  offered. Chrome also shows its install icon in the address bar. Once installed
-  it opens in its own window and still works if the line drops.
-- **Who is signed in decides what they see**: the login ID is matched against
-  Settings → Users. The sidebar only shows the sections that user is allowed to
-  open, and going anywhere else is refused. Sign in as `shahnawaz` for the owner's
-  view or `hamza` for a rider's.
-- **The owner's dashboard**: four numbers, a period picker and one card that
-  changes what it shows, rather than everything at once. Pick **Today**,
-  **Yesterday**, **Last 7 days**, **Last 30 days** or your own dates and the
-  numbers, the chart and the card all follow. Every bar on the chart opens the
-  orders behind it, and the takeaway tile opens the names and numbers that got
-  the number. The live pipeline strip only appears for tonight, because that is
-  the only period it means anything for.
-- **A rider's own screen**: a user with the Rider role gets two pages built for a
-  phone: his home, with To take, To give and what is on the bike, and an Orders
-  page with his drops only, split into *On the bike* and *Delivered*. Tapping one
-  opens the customer, their number, the address, the items, and a box to leave a
-  note the counter can read. When the counter assigns him a drop he gets a
-  notification: riders never get the voice. There is nothing to accept: he rides,
-  then taps **Mark delivered**, and the cash moves from To take to To give.
+- **Install it**: Settings → Install the app, so it opens from the home screen
+  with no address bar. A service worker keeps the shell available offline. Live
+  orders are never cached, because a stale board shown as though it were live is
+  worse than an empty one.
 
-## Where to change things
+## Files
 
-**Colours, fonts, spacing**: `css/styles.css`, the `:root` block at the top, and
-the `html[data-theme="light"]` block right under it for the light palette.
-Everything else reads from those variables, so changing `--or` reskins the app in
-both themes.
-
-`css/styles.css` is then sectioned: `login`, `app shell`, `primitives`, `KPI`,
-`orders board`, `drawer & modal`, `conversations`, `riders`, `customers`, `bulk`,
-`menu`, `settings`, `responsive`, and the additions at the end (theme, sidebar,
-category switch, thumbnails, roles, rider screen, dismissible pop-ups).
-
-**Content and behaviour**: `js/app.js`, also sectioned with banner comments:
-
-| Section | What lives there |
-| --- | --- |
-| `menu` | real items and prices, and whether a category is switched on |
-| `delivery areas` | zones and their delivery fees |
-| `people` | demo customers, riders, staff |
-| `voice + chime` | voice selection, the pronunciation map, the alert lines |
-| `actions` | the glue that moves an order between pages |
-| `live chats` | the AI order-taking simulation |
-| `simulation loop` | the timers that make the demo move |
-| `router + chrome` | nav, drawer, modal, notifications, theme, sidebar |
-| `DASHBOARD` … `SETTINGS` | one renderer per page |
-| `login + boot` | sign-in and startup |
-
-**Markup / icons**: `index.html`. The icon sprite is the `<svg>` at the top:
-`<symbol id="i-…">` for UI icons, `f-…` for food icons, used as
-`<svg class="i"><use href="#i-bike"/></svg>`.
-
-**Menu availability**: a single item has a switch, and so does a whole category:
-pick a category pill and its on/off switch appears right under the pills. `isOn(item)`
-is the one check the AI agent uses; it is true only when the item and its category
-are both on, so switching off BBQ silently takes all twelve BBQ items off the menu
-the agent quotes from.
-
-**Rider money**: three numbers, each one clickable for the orders behind it:
-
-Two people watch the same money from opposite ends, so each sees it differently.
-
-**On the rider's own screen**
-
-| | what it means |
-| --- | --- |
-| `riderTake(r)` | **To take**: cash-on-delivery orders still at the customer |
-| `riderGive(r)` | **To give**: cash in his pocket, waiting to be handed in |
-
-Marking a drop delivered moves it straight from the first to the second.
-
-**On the counter's screen**
-
-| | what it means |
-| --- | --- |
-| `toTake(r)` | **To take**: everything he owes, on the road or in his pocket |
-| `collected(r)` | **Collected**: cash actually handed in tonight; it only grows |
-
-Delivering changes nothing here, because the money is still out of the till
-either way. **Receive** is the only thing that moves it: To take falls by what
-was counted and Collected rises by the same amount.
-
-So one Rs 500 cash order travels like this:
-
-| | rider To take | rider To give | counter To take | counter Collected |
-| --- | --- | --- | --- | --- |
-| assigned | +500 |: | +500 |: |
-| delivered | −500 | +500 | unchanged |: |
-| handed in |: | −500 | −500 | +500 |
-
-Prepaid orders never enter any of it. Collected is backed by a ledger of
-hand-ins (`r.handins`) rather than a guess, so the figure and the list behind
-it always agree, even after part payments.
-
-**The kitchen screen** is a ticket rail: one docket per order, oldest first, a
-timer that turns amber then red, and tappable lines so a cook can strike items
-off as they are plated. Start cooking and Ready are the only two buttons. On a
-phone it collapses to a single column with the pass behind a tab. The same
-queue also shows as the *In kitchen* column on the Delivery Orders board.
-
-**Staff access**: `PERMS` lists every section of the CRM and `ROLES` gives the
-two roles, Admin and Rider, their defaults. Adding a user asks for a role and then
-lets you tick sections individually; the role is only the starting point. A Rider
-user is also tied to a rider on the board (`riderId`), which is how his screen
-knows whose drops to show.
-
-**Install / offline**: `manifest.webmanifest` and `sw.js` in this folder.
-The worker is network-first, so a deploy is picked up straight away and the cache
-is only a fallback for a dropped connection. `assets/icon.svg` is the app icon.
-
-## Notes
-
-- All state is in memory. A reload resets the demo: nothing is persisted and there
-  is no backend. The only things remembered are your theme and sidebar choice.
-- The only network request is the Google Fonts stylesheet.
-- The whole chain is connected: the AI agent takes an order in a chat, that order
-  appears on the board for approval, moves through the kitchen column to a rider,
-  and the moment the rider marks it delivered the customer gets a closing message,
-  the cash moves onto that rider's sheet and the customer's history updates.
-- Voice uses the browser's own speech engine, so how human it sounds depends on
-  which voices the device has. The app ranks them and takes the best: the online
-  "Natural" / "Neural" voices sound like a person, the built-in offline ones do
-  not: and you can also pick one by hand in Settings → Notifications & voice. A
-  pronunciation layer fixes the words an English engine mangles, so the owner
-  reads as SHAH-NAWAAZ. For a voice that sounds the same on every device you need
-  a cloud TTS service, which needs an API key and a small backend.
-- Settings → WhatsApp is read-only: status, the number, and a way to reach Evexa
-  AI at evexaai.com. Put your real account-manager details in `evexaModal()` in
-  `js/app.js`.
-- The original single-file prototype is kept as-is in `reference/`.
+```
+index.html                 the shell: icons, sign-in, the frame
+css/base.css, styles.css   everything it looks like
+js/app.js                  all of it: state, the API, the five pages
+sw.js                      offline shell, network first
+manifest.webmanifest       so it installs as an app
+reference/                 the original single-file prototype, kept as it was
+```
 
 To run it, see the [README one level up](../README.md).

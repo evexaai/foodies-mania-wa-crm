@@ -1,7 +1,7 @@
 {
-  "name": "Foodies Mania CRM",
+  "name": "Foodies Mania Orders",
   "short_name": "Foodies Mania",
-  "description": "WhatsApp order console: AI takes the order, you approve it, the kitchen cooks it, a rider takes it to the door.",
+  "description": "The order desk for the Foodies Mania website: approve an order, answer a chat, take something off the menu.",
   "id": "/",
   "start_url": "/dashboard/",
   "scope": "/dashboard/",
@@ -9,15 +9,43 @@
   "orientation": "any",
   "background_color": "#130b07",
   "theme_color": "#130b07",
-  "categories": ["business", "food", "productivity"],
+  "categories": [
+    "business",
+    "food",
+    "productivity"
+  ],
   "icons": [
-    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" },
-    { "src": "assets/logo.webp", "sizes": "256x256", "type": "image/webp", "purpose": "any" }
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "assets/logo.webp",
+      "sizes": "256x256",
+      "type": "image/webp",
+      "purpose": "any"
+    }
   ],
   "shortcuts": [
-    { "name": "Delivery Orders", "url": "/dashboard/?go=orders" },
-    { "name": "Live Conversations", "url": "/dashboard/?go=chats" },
-    { "name": "Riders", "url": "/dashboard/?go=riders" }
+    {
+      "name": "Orders",
+      "url": "/dashboard/?go=orders"
+    },
+    {
+      "name": "Live Conversations",
+      "url": "/dashboard/?go=chats"
+    },
+    {
+      "name": "Menu Management",
+      "url": "/dashboard/?go=menu"
+    }
   ]
 }

@@ -5,12 +5,13 @@ Two projects that work together:
 | Folder | What it is | Who uses it |
 | --- | --- | --- |
 | [`website/`](website/README.md) | The ordering website, the chat widget and the order-by-chat page | Customers |
-| [`dashboard/`](dashboard/README.md) | The CRM: orders board, kitchen, riders, live chats, menu, settings | Restaurant staff |
+| [`dashboard/`](dashboard/README.md) | The order desk: the board, live chats, menu, customers | Restaurant staff |
 
-An order placed on the website lands on the dashboard's **Delivery Orders** board,
-and the customer's tracker on the website moves as the staff work the order. The
-two talk through the browser, so they must be served from the same address
-(see [How the website reaches the dashboard](website/README.md)).
+An order placed on the website lands on the desk's **Orders** board waiting for
+approval, and the moment it is approved the customer is told. A chat started on
+the website appears under **Live Conversations** as it happens, and anything
+switched off in **Menu Management** sells out on the website within seconds.
+Both sides talk to the same database, so they work from different computers.
 
 Plain HTML, CSS and JavaScript. No build step, no framework, no dependencies.
 
@@ -26,7 +27,7 @@ node server.mjs      # or: npm run dev
 | --- | --- |
 | Website | http://localhost:5500/website/ |
 | Order by chat | http://localhost:5500/website/order-chat |
-| Dashboard | http://localhost:5500/dashboard/ (sign in as `shahnawaz` / `fm@2025`) |
+| The order desk | http://localhost:5500/dashboard/ (any login ID and password) |
 
 Pages reload by themselves when you save a file. Use another port with
 `PORT=3000 node server.mjs`.
@@ -40,17 +41,20 @@ package.json       npm run dev
 vercel.json        hosting settings (Vercel)
 .vercelignore      files kept out of the hosted site
 
-api/               the order book: three small functions, one database
-  _db.js           the Neon connection and the two tables
+api/               the line between the two: small functions, one database
+  _db.js           the Neon connection and the tables
   order.js         the customer's end: place an order, read your own
   orders.js        the counter's end: read them all, move one along
+  chat.js          the customer's end of a conversation
+  chats.js         the counter's end: read one, answer in it
+  menu.js          what the counter has switched off or repriced
 
 website/           customer site: see website/README.md
   index.html, menu.html, order-chat.html
   css/  js/  assets/ (food photos, hero images, logo)
   tools/           scripts that fetch and save the menu photos
 
-dashboard/         staff CRM: see dashboard/README.md
+dashboard/         the order desk: see dashboard/README.md
   index.html, manifest.webmanifest, sw.js
   css/  js/  assets/
   reference/       the original single-file prototype, kept for reference
@@ -63,12 +67,15 @@ and the dashboard reads it from there. That is what makes an order survive a
 closed tab: the counter sees it on any computer, and the customer sees the
 restaurant's answer when they come back, on the same phone, without signing in.
 
-Two tables, both made on first use, so there is nothing to run by hand:
+Five tables, all made on first use, so there is nothing to run by hand:
 
 | | |
 | --- | --- |
 | `fm_customers` | one row per **phone number**, which is the key: name, area, address, how many orders, how much spent, first and last seen |
 | `fm_orders` | one row per order: who, what, where, how they paid, the transaction ID or screenshot, and the status |
+| `fm_threads` | one row per chatting device: who they are, and whether a member of staff has taken the conversation over from the AI |
+| `fm_messages` | every line of every website chat, so the counter can read one while it is happening and answer in it |
+| `fm_menu` | the few menu facts the counter controls: an item or a section switched off, and a changed price |
 
 **To switch it on**
 
@@ -89,7 +96,8 @@ sites fall back to talking through the browser, which is how the demo has
 always worked. An order placed while the database is unreachable waits in the
 browser and is sent the moment it can be.
 
-**`STAFF_KEY` (optional)** locks the dashboard's end of the API. Set it in
+**`STAFF_KEY` (optional)** locks the desk's end of the API (`/api/orders`,
+`/api/chats`, and changing the menu). Set it in
 Vercel and the dashboard asks for it once, then remembers it. Leave it unset
 and the endpoint is open, which is fine while the dashboard itself is not
 public.

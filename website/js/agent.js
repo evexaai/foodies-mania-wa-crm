@@ -1,8 +1,7 @@
 "use strict";
 /* ================= the order-taking agent (demo brain) =================
    Shared by the chat bubble on the website and the chat-to-order page.
-   It speaks English or Roman Urdu, whichever the customer writes in, the same
-   way the CRM's WhatsApp agent does.
+   It speaks English or Roman Urdu, whichever the customer writes in.
 
    Today the brain is rules: it reads the menu in menu.js, finds the dishes,
    quantities and sizes in what the customer typed, and walks them through
@@ -13,7 +12,7 @@
    around it (cart, CRM hand-off, tracking) stays as it is.
 
    A reply is a list of messages: {text, quick?:[labels], items?:[ids], summary?:true}
-   *bold* and line breaks are rendered by the chat UI, WhatsApp-style.       */
+   *bold* and line breaks are rendered by the chat UI.                       */
 
 /* ---------- reading what the customer typed ---------- */
 const NUMW={ek:1,one:1,a:1,an:1,do:2,two:2,teen:3,three:3,char:4,chaar:4,four:4,panch:5,paanch:5,five:5,chay:6,che:6,six:6,saat:7,seven:7,aath:8,eight:8,nau:9,nine:9,das:10,ten:10};
@@ -167,10 +166,14 @@ class Agent{
           if(l)Cart.setQty(l.id,l.size,f.said&&f.qty<l.qty?l.qty-f.qty:0)});
         say(this.L('Done, removed. 👍','Theek hai, hata diya. 👍')+'\n\n'+this.cartText(),{quick:Cart.count()?['Checkout','Add more']:['Deals','Menu']});
         return out}
-      const added=[];
+      const added=[],sold=[];
       found.forEach(f=>{const it=FM_BYID[f.id];
+        /* the counter has taken it off the menu tonight: never promise it */
+        if(it.off){sold.push(it.name);return}
         if(it.sizes&&!f.size)this.pending.push({id:f.id,qty:f.qty});
         else{Cart.add(f.id,f.size,f.qty);added.push(`${f.qty}× ${it.name}${f.size?' ('+f.size+')':''} · ${fmRs(Cart.priceOf(f.id,f.size)*f.qty)}`)}});
+      if(sold.length)say(this.L(`Sorry, ${sold.join(' and ')} ${sold.length>1?'are':'is'} finished for tonight.`,
+        `Sorry, ${sold.join(' aur ')} aaj khatam ho gaya hai.`));
       if(RX.pickup.test(t))this.d.type='pickup';else if(RX.delivery.test(t))this.d.type='delivery';
       if(added.length)say(this.L('Added to your order ✅\n','Order mein add kar diya ✅\n')+added.map(a=>'• '+a).join('\n'));
       if(this.pending.length)return this.askSize(out);

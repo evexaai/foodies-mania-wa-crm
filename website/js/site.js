@@ -43,15 +43,26 @@ function closeModal(){$('#modal').classList.remove('on');$('#modal').setAttribut
 function openDrawer(){drawCart();$('#drawer').classList.add('on');$('#drawer').setAttribute('aria-hidden','false');$('#scrim').classList.add('on');lockPage(true)}
 function closeDrawer(){$('#drawer').classList.remove('on');$('#drawer').setAttribute('aria-hidden','true');if(!$('#modal').classList.contains('on')){$('#scrim').classList.remove('on');lockPage(false)}}
 
+/* a quiet line at the top of the screen, for news the customer did not ask
+   for: something selling out while they were deciding */
+function toastLine(text){
+  let el=$('#siteToast');
+  if(!el){el=document.createElement('div');el.id='siteToast';el.className='site-toast';document.body.appendChild(el)}
+  el.textContent=text;el.classList.add('on');
+  clearTimeout(toastLine._t);
+  toastLine._t=setTimeout(()=>el.classList.remove('on'),6000);
+}
+
 /* ---------- the menu ---------- */
 const tagCls=t=>/spicy/i.test(t)?'spicy':/best|popular|must/i.test(t)?'hot':'';
 const qtyIn=id=>Cart.lines().filter(l=>l.id===id).reduce((a,l)=>a+l.qty,0);
 function cardHtml(it,i=0){
   const q=qtyIn(it.id);
-  const ctl=it.sizes?`<button class="add" data-open="${it.id}">${q?q+' in cart · ':''}Choose</button>`
+  const ctl=it.off?`<span class="soldout">Sold out tonight</span>`
+    :it.sizes?`<button class="add" data-open="${it.id}">${q?q+' in cart · ':''}Choose</button>`
     :q?`<div class="stepper" data-step="${it.id}"><button data-d="-1" aria-label="Remove one">−</button><span>${q}</span><button data-d="1" aria-label="Add one">+</button></div>`
     :`<button class="add" data-add="${it.id}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>Add</button>`;
-  return `<article class="card rv" style="--d:${(i%4)*.07}s" data-item="${it.id}" data-name="${esc((it.name+' '+(it.alias||[]).join(' ')+' '+it.desc).toLowerCase())}">
+  return `<article class="card rv${it.off?' off':''}" style="--d:${(i%4)*.07}s" data-item="${it.id}" data-name="${esc((it.name+' '+(it.alias||[]).join(' ')+' '+it.desc).toLowerCase())}">
     <div class="card-img">${it.tag?`<span class="tag ${tagCls(it.tag)}">${esc(it.tag)}</span>`:''}<img src="${fmImg(it.img,'-s')}" alt="${esc(it.name)}" loading="lazy" decoding="async" width="480" height="360"></div>
     <div class="card-b"><h3>${esc(it.name)}</h3><p>${esc(it.desc)}</p>
     <div class="card-f"><span class="price">${it.sizes?'<small>from</small>':''}${fmRs(it.price)}</span><span class="ctl">${ctl}</span></div></div></article>`}
@@ -279,7 +290,7 @@ function goSlide(i){slide=(i+HERO.length)%HERO.length;$$('.slide').forEach((s,k)
 let chat=null,unread=0;
 function widget(){
   const cw=$('#cw');const agent=new Agent('widget');
-  chat=ChatUI({log:$('#cwLog'),quick:$('#cwQuick'),form:$('#cwForm'),input:$('#cwIn'),agent,key:'fm.chatlog.widget',
+  chat=ChatUI({log:$('#cwLog'),quick:$('#cwQuick'),form:$('#cwForm'),input:$('#cwIn'),agent,key:'fm.chatlog.widget',channel:'bubble',
     onBot:m=>{if(!cw.classList.contains('on')){unread++;let b=$('.cw-badge');if(!b){b=document.createElement('span');b.className='cw-badge';$('#cwBubble').appendChild(b)}b.textContent=unread}}});
   const open=on=>{cw.classList.toggle('on',on);$('#cwPanel').setAttribute('aria-hidden',String(!on));if(on){cw.classList.add('seen');unread=0;$('.cw-badge')&&$('.cw-badge').remove();chat.start();chat.redraw();setTimeout(()=>innerWidth>720&&$('#cwIn').focus(),250)}};
   $('#cwBubble').onclick=()=>open(!cw.classList.contains('on'));$('#cwX').onclick=()=>open(false);
@@ -489,6 +500,18 @@ function motion(){
 /* ---------- boot ---------- */
 function boot(){
   if($('#sections'))drawMenu();
+  /* the counter can sell something out while this page is open: redraw the
+     menu when that news arrives, and say so if it was already in the cart */
+  FM_LIVE.on(()=>{
+    if($('#sections'))drawMenu();
+    specials&&specials();
+    const gone=Cart.offLines();
+    if(gone.length){
+      Cart.dropOff();drawCart();
+      toastLine(gone.length===1?`${gone[0]} has just sold out, so it has come out of your order.`
+        :`${gone.length} items have just sold out and have come out of your order.`);
+    }
+  });
   paintMode();paintOpen();drawCart();if($('#iwall'))insta();widget();specials();clock();tiles();
   if($('#dishN'))$('#dishN').textContent=FM_ITEMS.length;
   if($('#stDishes')){$('#stDishes').textContent=FM_ITEMS.length;$('#stDeals').textContent=FM_ITEMS.filter(i=>/deal/.test(i.cat)).length;$('#q').placeholder=`Search ${FM_ITEMS.length} dishes`}

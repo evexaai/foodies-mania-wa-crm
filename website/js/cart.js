@@ -13,10 +13,14 @@ const Cart=(()=>{
   addEventListener('storage',e=>{if(e.key===K){try{lines=JSON.parse(e.newValue)||[]}catch{lines=[]}subs.forEach(f=>f())}});
   return {
     priceOf,
-    lines:()=>lines.map(l=>({...l,item:FM_BYID[l.id],price:priceOf(l.id,l.size),label:FM_BYID[l.id].name+(l.size?' ('+l.size+')':'')})),
-    add(id,size,qty=1,note=''){const it=FM_BYID[id];if(!it)return;if(it.sizes&&!size)size=it.sizes[0][0];
+    lines:()=>lines.map(l=>({...l,item:FM_BYID[l.id],price:priceOf(l.id,l.size),off:!!FM_BYID[l.id].off,label:FM_BYID[l.id].name+(l.size?' ('+l.size+')':'')})),
+    /* anything in the cart that has since sold out */
+    offLines:()=>lines.filter(l=>FM_BYID[l.id]&&FM_BYID[l.id].off).map(l=>FM_BYID[l.id].name),
+    dropOff(){const n=lines.length;lines=lines.filter(l=>!(FM_BYID[l.id]&&FM_BYID[l.id].off));if(lines.length!==n)save();return n-lines.length},
+    /* false means it was refused: the item is off the menu tonight */
+    add(id,size,qty=1,note=''){const it=FM_BYID[id];if(!it)return false;if(it.off)return false;if(it.sizes&&!size)size=it.sizes[0][0];
       const k=keyOf(id,size);const ex=lines.find(l=>keyOf(l.id,l.size)===k);
-      if(ex){ex.qty+=qty;if(note)ex.note=note}else lines.push({id,size:size||'',qty,note});save()},
+      if(ex){ex.qty+=qty;if(note)ex.note=note}else lines.push({id,size:size||'',qty,note});save();return true},
     setQty(id,size,qty){const k=keyOf(id,size);const ex=lines.find(l=>keyOf(l.id,l.size)===k);if(!ex)return;
       if(qty<=0)lines=lines.filter(l=>l!==ex);else ex.qty=qty;save()},
     remove(id,size){lines=lines.filter(l=>size===undefined?l.id!==id:keyOf(l.id,l.size)!==keyOf(id,size));save()},

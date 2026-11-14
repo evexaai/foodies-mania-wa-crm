@@ -1,7 +1,7 @@
 /* Foodies Mania CRM — service worker.
    Network first, so a deploy is picked up immediately; the cache is only a
    fallback for when the counter loses its connection mid-shift. */
-const CACHE = 'fm-crm-v1';
+const CACHE = 'fm-desk-v2';
 const SHELL = [
   './',
   './index.html',
@@ -37,6 +37,9 @@ self.addEventListener('fetch', e => {
   let url;
   try { url = new URL(req.url); } catch (err) { return; }
   if (url.origin !== self.location.origin) return;   // leave Google Fonts to the browser
+  // Orders and conversations are never cached: a stale board shown as if it
+  // were live is worse than an empty one. They go to the network or nowhere.
+  if (url.pathname.startsWith('/api/')) return;
 
   e.respondWith(
     fetch(req)

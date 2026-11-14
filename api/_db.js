@@ -14,6 +14,14 @@ import { neon } from '@neondatabase/serverless';
  *   fm_orders     one row per order, tied to that phone and to the device that
  *                 placed it, so a customer can be shown their own orders
  *                 without ever signing in
+ *   fm_messages   every line of every website chat, so the counter can read a
+ *                 conversation that is happening right now and answer in it
+ *   fm_threads    one row per chatting device: who they are and whether a
+ *                 member of staff has taken the conversation over from the AI
+ *   fm_menu       the few menu facts the counter controls: whether an item or a
+ *                 whole category is being offered, and a changed price. The
+ *                 website reads it, so switching something off here sells out
+ *                 on the site within seconds
  */
 export const hasDb = () => !!process.env.DATABASE_URL;
 
@@ -62,6 +70,37 @@ export function db() {
     await sql`create index if not exists fm_orders_device on fm_orders (device_id, placed_at desc)`;
     await sql`create index if not exists fm_orders_placed on fm_orders (placed_at desc)`;
     await sql`create index if not exists fm_orders_phone  on fm_orders (phone, placed_at desc)`;
+
+    await sql`create table if not exists fm_threads (
+      device_id   text primary key,
+      phone       text,
+      name        text,
+      channel     text not null default 'bubble',
+      taken_by    text,
+      unread      integer not null default 0,
+      last_text   text,
+      last_who    text,
+      started_at  timestamptz not null default now(),
+      updated_at  timestamptz not null default now()
+    )`;
+    await sql`create table if not exists fm_messages (
+      id          bigserial primary key,
+      device_id   text not null,
+      who         text not null,
+      text        text not null,
+      channel     text,
+      at          timestamptz not null default now()
+    )`;
+    await sql`create index if not exists fm_messages_dev on fm_messages (device_id, id)`;
+    await sql`create index if not exists fm_threads_up   on fm_threads (updated_at desc)`;
+
+    await sql`create table if not exists fm_menu (
+      item_id     text primary key,
+      kind        text not null default 'item',
+      available   boolean not null default true,
+      price       numeric(10,2),
+      updated_at  timestamptz not null default now()
+    )`;
   })().catch(e => { schema = null; throw e; });
   return { sql, ready: schema };
 }

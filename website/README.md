@@ -25,15 +25,15 @@ place an order on the website or in the chat in another tab of the same browser.
 
 ```
 index.html          the ordering site: hero, menu, cart, checkout, tracker, chat bubble
-order-chat.html     WhatsApp-style chat ordering, with the order panel on the right
-css/site.css        site design tokens and components (same palette as the CRM)
+order-chat.html     ordering by chat, with the order panel on the right
+css/site.css        site design tokens and components (same palette as the desk)
 css/chat.css        the chat bubble and shared message styles
-css/order-chat.css  the WhatsApp look for the chat page
+css/order-chat.css  the look of the chat page
 js/menu.js          THE menu: categories, items, sizes, deals, areas, payment details
 js/cart.js          one cart shared by the menu, the widget and the chat page
 js/agent.js         the order-taking agent (demo brain, English + Roman Urdu)
 js/chatui.js        draws a chat transcript for either chat surface
-js/bridge.js        website ⇄ CRM: sends orders, receives status
+js/bridge.js        website ⇄ order desk: sends orders, receives the answer
 js/site.js          the website page
 js/order-chat.js    the chat page
 tools/fetch-images.py  downloads the menu photos into assets/food/
@@ -42,7 +42,7 @@ tools/fetch-images.py  downloads the menu photos into assets/food/
 ## Where to change things
 
 - **Prices, dishes, deals, delivery fees:** `js/menu.js`. Prices and deals come from
-  foodies-mania.com. The delivery areas and fees match the CRM's list.
+  foodies-mania.com. The order desk reads this same file, so the two cannot drift apart.
 - **Payment account numbers:** `FM_PAY` in `js/menu.js`. They are **demo
   placeholders** and appear with a DEMO tag at checkout.
 - **Photos:** each item's `img` is a Pexels photo id. Change it, then run
@@ -64,16 +64,29 @@ the order on. They never sign in. The browser keeps a device id, the order
 carries it, and the server only hands back orders bearing the id it was asked
 with, so an order number on its own opens nothing.
 
-## How the CRM link works (demo)
+## How the order desk link works
 
-Both apps run on the same origin, so the browser connects them. The website puts
-the order in `localStorage` (`fm.web.queue`) and announces it on the
-`BroadcastChannel("fm-web")`. The CRM takes it, adds the customer if they're
-new, and notifies the counter. Each status change goes back through
-`fm.web.status`. This only works within one browser. With a real backend,
-`Bridge.send()` and the status feed are the two pieces to swap for API calls.
+The database is the link. An order goes to `POST /api/order`, the desk reads it
+from `/api/orders`, and the answer comes back to this page on its next poll.
+Delivery and pickup travel the same way; the desk shows which it is and offers
+**Delivered** or **Picked up** accordingly.
 
-Pickup orders show a **Handed over** button on the board instead of **Assign rider**.
+The browser bridge is still there underneath, as a fallback: the order is also
+put in `localStorage` (`fm.web.queue`) and announced on
+`BroadcastChannel("fm-web")`, which is how the whole thing works on a laptop
+with no connection, as long as both are open in the same browser.
+
+**The chat is linked too.** Every line of a conversation, the customer's and
+the agent's, is copied to `POST /api/chat`, so the counter can read it while it
+is happening. If somebody there answers, the reply arrives here within about
+five seconds, the agent steps aside, and the customer is talking to a person
+until the counter hands it back.
+
+**The menu is linked too.** `GET /api/menu` says what the counter has switched
+off or repriced, and this site re-reads it every forty-five seconds. A
+sold-out item goes grey, its Add button becomes **Sold out tonight**, the agent
+stops offering it, and if it was already in the cart it comes out with a line
+saying why.
 
 ## Connecting the LLM later
 
@@ -81,5 +94,5 @@ Pickup orders show a **Handed over** button on the board instead of **Assign rid
 transcript, the cart and the menu, and act on the tool calls that come back
 (`add_to_cart`, `remove_from_cart`, `set_details`, `place_order`). The cart,
 checkout, CRM hand-off and tracking already work, so nothing else needs to
-change. The API key must stay on a server, for example a Vercel function at
-`/api/chat`. It must never go in this folder.
+change. The API key must stay on a server, in a Vercel function alongside the ones in
+`api/`. It must never go in this folder.

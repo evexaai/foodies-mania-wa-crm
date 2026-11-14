@@ -265,3 +265,7 @@ html[data-theme="light"] .ticket{filter:drop-shadow(0 30px 40px rgba(122,58,12,.
 /* craving cards sit on photos: keep their words light in both themes */
 .crave span,.crave b{color:#fff}
 .crave small{color:#f1d9be}
+
+/* the counter answering, on the chat page */
+body.oc .msg.staff{background:linear-gradient(160deg,rgba(244,123,32,.2),rgba(53,35,24,.94));border:1px solid rgba(255,176,120,.3)}
+body.oc .msg .wholbl{font-size:11px;color:#ffcf9e}
