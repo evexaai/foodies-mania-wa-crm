@@ -4,8 +4,8 @@ import { db, hasDb, staffOk, body, str } from './_db.js';
  * What the counter has changed about the menu.
  *
  *   GET  /api/menu   open to anyone: the website reads it on every page load
- *   POST /api/menu   the counter's end: switch an item or a category off, or
- *                    change a price
+ *   POST /api/menu   the counter's end: switch an item or a category off,
+ *                    change a price, or change a delivery fee
  *
  * The menu itself lives in one file, website/js/menu.js, and both sites read
  * it. This table holds only the handful of facts that change during a night,
@@ -28,6 +28,7 @@ export default async function handler(req, res) {
       return res.status(200).json({
         items: rows.filter(r => r.kind === 'item'),
         cats: rows.filter(r => r.kind === 'cat'),
+        areas: rows.filter(r => r.kind === 'area'),
         now: new Date().toISOString()
       });
     }
@@ -41,7 +42,7 @@ export default async function handler(req, res) {
     const b = body(req);
     const id = str(b.id, 60);
     if (!id) return res.status(400).json({ error: 'id is required' });
-    const kind = b.kind === 'cat' ? 'cat' : 'item';
+    const kind = ['cat', 'area'].includes(b.kind) ? b.kind : 'item';
     const available = b.available !== false;
     // null means "no change to the price": the file's price stands
     const price = b.price == null || b.price === '' ? null : Math.max(0, Math.round(Number(b.price) || 0));

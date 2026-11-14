@@ -56,7 +56,7 @@ const foodThumb=it=>it&&it.img?`<img class="mth" src="../website/assets/food/${e
 const S={
   orders:[],omap:{},
   threads:[],tmap:{},msgs:{},
-  menu:{items:{},cats:{}},
+  menu:{items:{},cats:{},areas:{}},
   notifs:[],
   offline:false, lastSync:0, ready:false,
   set:{sound:true,pop:true,speak:true},
@@ -148,10 +148,11 @@ const Sync={
     });
   },
   async menu(){
-    const {items=[],cats=[]}=await API.get('/menu');
-    const m={items:{},cats:{}};
+    const {items=[],cats=[],areas=[]}=await API.get('/menu');
+    const m={items:{},cats:{},areas:{}};
     items.forEach(r=>m.items[r.item_id]=r);
     cats.forEach(r=>m.cats[r.item_id]=r);
+    areas.forEach(r=>m.areas[r.item_id]=r);
     S.menu=m;
   },
   async all(){
@@ -837,10 +838,12 @@ const mAvail=it=>{const r=S.menu.items[it.id];return r?r.available!==false:true}
 const mCatAvail=id=>{const r=S.menu.cats[id];return r?r.available!==false:true};
 const mOn=it=>mAvail(it)&&mCatAvail(it.cat);
 const mPrice=it=>{const r=S.menu.items[it.id];return r&&r.price!=null?Number(r.price):it.price};
+/* the fee in force: what the counter set, or the one in the menu file */
+const areaFee=a=>{const r=S.menu.areas[a.name];return r&&r.price!=null?Number(r.price):a.fee};
 const soldTonight=()=>{const c={};tonight().forEach(o=>(o.items||[]).forEach(i=>c[i.id]=(c[i.id]||0)+(Number(i.qty)||1)));return c};
 
 async function menuSet(id,kind,available,price){
-  const bag=kind==='cat'?S.menu.cats:S.menu.items;
+  const bag=kind==='cat'?S.menu.cats:kind==='area'?S.menu.areas:S.menu.items;
   const was=bag[id];
   bag[id]={item_id:id,kind,available,price:price==null?(was?was.price:null):price};
   changed();
@@ -996,7 +999,7 @@ let setSec='desk';
 PAGES.settings={
  render(el,opts){
   if(opts.sec)setSec=opts.sec;
-  const secs=[['desk','Alerts and sound','sound'],['app','Install the app','down'],['link','Website and database','link'],['biz','The restaurant','store']];
+  const secs=[['desk','Alerts and sound','sound'],['users','Users','users'],['areas','Delivery areas','pin'],['app','Install the app','down'],['biz','The restaurant','store']];
   el.innerHTML=`<div class="set"><div class="set-nav" id="setNav">${secs.map(s=>`<button data-s="${s[0]}" class="${setSec===s[0]?'on':''}">${ic(s[2])}${s[1]}</button>`).join('')}</div><div class="set-body" id="setB"></div></div>`;
   $$('#setNav button').forEach(b=>b.onclick=()=>{setSec=b.dataset.s;$$('#setNav button').forEach(x=>x.classList.toggle('on',x===b));this.body()});
   this.body();
@@ -1014,7 +1017,6 @@ PAGES.settings={
       <label class="srow"><div class="grow"><b>Read the order out</b><small>The customer's name is spoken after the chime. Needs the chime on.</small></div><button class="sw ${S.set.speak?'on':''}" id="sSpk" role="switch" aria-checked="${S.set.speak}"></button></label>
      </div>
      <div class="md-f" style="padding:14px 0 0;border:0"><button class="btn ghost" id="sTest">${ic('sound')}Test it</button></div>
-     <p class="dim" style="font-size:12px;margin:10px 0 0">A browser will not play a sound until the page has been clicked once. Click anywhere after opening the desk and the chime works for the rest of the shift.</p>
     </div>`;
    const tog=(id,k)=>{$(id).onclick=e=>{e.preventDefault();S.set[k]=!S.set[k];saveSet();this.body();refreshChrome()}};
    tog('#sPop','pop');tog('#sSnd','sound');tog('#sSpk','speak');
@@ -1036,20 +1038,32 @@ PAGES.settings={
    return;
   }
 
-  if(setSec==='link'){
-   const site=location.origin+'/website/';
-   B.innerHTML=`<div class="card"><div class="card-h"><h3>${ic('link')}Where the orders come from</h3></div>
-     <div class="rows">
-      <div class="srow"><div class="grow"><b>The database</b><small>${S.offline?'Cannot be reached. The desk is listening to the browser instead, so only orders placed in this same browser will show.':'Connected. Orders, customers and conversations are coming from it.'}</small></div><span class="tag ${S.offline?'t-cancelled':'t-delivered'}">${S.offline?'Not connected':'Connected'}</span></div>
-      <div class="srow"><div class="grow"><b>The website</b><small class="ell">${esc(site)}</small></div><a class="btn sm ghost" href="${esc(site)}" target="_blank" rel="noopener">${ic('expand','sm')}Open</a></div>
-      <div class="srow"><div class="grow"><b>Orders on the board</b><small>${S.orders.length} in the last two days, ${tonight().length} tonight</small></div><button class="btn sm ghost" id="lkSync">${ic('sparkle','sm')}Check now</button></div>
-      <div class="srow"><div class="grow"><b>Staff key</b><small>${API.key()?'Set on this computer. It is sent with every request so the desk can read the orders.':'Not needed: the owner has not locked the desk.'}</small></div><button class="btn sm ghost" id="lkKey">${API.key()?'Change':'Enter one'}</button></div>
-     </div>
-     <p class="dim" style="font-size:12px;margin:12px 0 0">${ic('shield','sm')}Nothing on this page holds the database password. It lives on the server, in an environment variable, and never reaches a browser.</p>
-    </div>`;
-   $('#lkSync').onclick=async()=>{await Sync.all();toast(S.offline?'Still no database':'Up to date',S.offline?'Check DATABASE_URL on the host':`${S.orders.length} orders, ${S.threads.length} conversations`,{icon:S.offline?'alert':'check',tone:S.offline?'bad':'ok'});this.body()};
-   $('#lkKey').onclick=()=>{keyAsked=false;askKey()};
-   return;
+  if(setSec==='users'){
+    B.innerHTML=`<div class="card"><div class="card-h"><h3>${ic('users')}Who can open the desk</h3>
+      <button class="btn pri sm sp" id="uAdd">${ic('plus','sm')}Add a user</button></div>
+      <div id="uList"><div class="empty">${ic('hourglass')}Reading the list…</div></div>
+     </div>`;
+    $('#uAdd').onclick=()=>userForm();
+    this.users();
+    return;
+  }
+
+  if(setSec==='areas'){
+    B.innerHTML=`<div class="card"><div class="card-h"><h3>${ic('pin')}Delivery areas and fees</h3>
+      <span class="dim sp" style="font-size:12.5px">${AREAS.length} areas</span></div>
+      <div class="areas edit">${AREAS.map(a=>`<div class="arow"><span class="ell">${esc(a.name)}</span>
+        <label class="pr">Rs <input type="number" min="0" step="10" value="${areaFee(a)}" data-fee="${esc(a.name)}" aria-label="Delivery fee for ${esc(a.name)}"></label></div>`).join('')}</div>
+      <p class="dim" style="font-size:12px;margin:12px 0 0">${ic('note','sm')}A fee changed here is the fee the website charges, from the next order on.</p>
+     </div>`;
+    B.onchange=e=>{
+      const i=e.target.closest('[data-fee]');if(!i)return;
+      const name=i.dataset.fee,a=AREAS.find(x=>x.name===name);
+      const v=Math.max(0,Math.round(Number(i.value)||0));
+      if(v===areaFee(a)){i.value=areaFee(a);return}
+      menuSet(name,'area',true,v);
+      toast('Fee changed',`${name} is now ${rs(v)} to deliver to`,{icon:'edit',tone:'ok'});
+    };
+    return;
   }
 
   /* the restaurant: read from the same file the website reads, so there is
@@ -1057,17 +1071,67 @@ PAGES.settings={
   B.innerHTML=`<div class="card"><div class="card-h"><h3>${ic('store')}${esc(BIZ.name||'The restaurant')}</h3></div>
     <div class="rows">
      <div class="srow"><div class="grow"><b>Open</b><small>${esc(BIZ.hours||'')}</small></div></div>
-     <div class="srow"><div class="grow"><b>Phone</b><small>${esc(BIZ.phone||'')}</small></div><a class="btn sm ghost" href="tel:${esc(BIZ.phone||'')}">${ic('phone','sm')}Call</a></div>
+     <div class="srow"><div class="grow"><b>Phone</b><small>${esc(BIZ.phone||'')}</small></div></div>
      <div class="srow"><div class="grow"><b>Address</b><small>${esc(BIZ.addr||'')}</small></div></div>
      <div class="srow"><div class="grow"><b>Delivery</b><small>${esc(BIZ.eta||'')} · pickup ready in ${esc(BIZ.pickupEta||'')}</small></div></div>
     </div>
    </div>
-   <div class="card" style="margin-top:14px"><div class="card-h"><h3>${ic('pin')}Delivery areas and fees</h3><span class="dim sp" style="font-size:12.5px">${AREAS.length} areas</span></div>
-    <div class="areas">${AREAS.map(a=>`<div class="arow"><span class="ell">${esc(a.name)}</span><b class="num">${rs(a.fee)}</b></div>`).join('')}</div>
-    <p class="dim" style="font-size:12px;margin:12px 0 0">${ic('note','sm')}These, the opening hours and the whole menu live in one file, <b class="mono">website/js/menu.js</b>, which both the website and this desk read. Changing it there changes it in both places at once.</p>
-   </div>`;
+`;
  }
 };
+
+/* ================= who can open the desk =================
+   A password is never kept here or sent back by the server: it is salted and
+   hashed the moment it is set. While the list is empty anybody can sign in,
+   which is what makes a fresh install usable; the first user added closes it
+   to everyone else.                                                        */
+PAGES.settings.users=async function(){
+  const box=$('#uList');if(!box)return;
+  let list=[];
+  try{({users:list=[]}=await API.get('/users'))}
+  catch(e){
+    box.innerHTML=`<div class="empty">${ic('alert')}${e.offline?'There is no database, so users cannot be kept.':'Could not read the list.'}</div>`;
+    return;
+  }
+  if(!$('#uList'))return;
+  $('#uList').innerHTML=list.length?`<div class="lst">${list.map(u=>`<div>
+      <div class="av sm ${avc(u.name)}">${ini(u.name)}</div>
+      <div class="grow" style="min-width:0"><b class="ell">${esc(u.name)}</b>
+        <small class="dim">signs in as ${esc(u.login)}</small></div>
+      <button class="iconbtn" data-del="${esc(u.login)}" aria-label="Remove ${esc(u.name)}">${ic('trash')}</button>
+    </div>`).join('')}</div>`
+   :`<div class="empty">${ic('users')}Nobody is set up yet, so anybody can sign in. Add the first user to close the desk.</div>`;
+  $$('[data-del]',$('#uList')).forEach(b=>b.onclick=()=>{
+    const u=list.find(x=>x.login===b.dataset.del);
+    confirmBox('Remove this user?',`${u.name} will not be able to sign in again.`,'Remove',async()=>{
+      try{await API.post('/users',{login:u.login,remove:true});toast('Removed',u.name,{icon:'check',tone:'ok'});PAGES.settings.users()}
+      catch{toast('That did not save','Check the connection and try again',{icon:'alert',tone:'bad'})}
+    },true);
+  });
+};
+function userForm(){
+  modal(`<div class="md-h"><div class="grow"><h3>Add a user</h3><p>They sign in with the login and password you set here.</p></div><button class="iconbtn" data-close>${ic('x')}</button></div>
+   <div class="md-b">
+    <label class="field"><span>Name</span><input class="tx" id="uN" placeholder="e.g. Kashif Ali"></label>
+    <label class="field" style="margin-top:12px"><span>Login</span><input class="tx" id="uL" placeholder="kashif" autocapitalize="none"></label>
+    <label class="field" style="margin-top:12px"><span>Password</span><input class="tx" id="uP" type="text" placeholder="At least 4 characters"></label>
+   </div>
+   <div class="md-f"><button class="btn ghost" data-close>Cancel</button><button class="btn pri" id="uOk">Add the user</button></div>`,m=>{
+    $('#uOk',m).onclick=async()=>{
+      const name=$('#uN',m).value.trim();
+      const login=($('#uL',m).value.trim()||name.split(' ')[0]).toLowerCase();
+      const pass=$('#uP',m).value;
+      if(!name||!login)return toast('A name and a login are needed','',{icon:'alert',tone:'bad'});
+      if(pass.length<4)return toast('The password is too short','Four characters or more',{icon:'alert',tone:'bad'});
+      try{
+        await API.post('/users',{login,name,pass});
+        closeModal();toast('User added',`${name} signs in as ${login}`,{icon:'check',tone:'ok'});
+        PAGES.settings.users();
+      }catch(e){toast('That did not save',e.offline?'There is no database to save it to':'Check the connection and try again',{icon:'alert',tone:'bad'})}
+    };
+    setTimeout(()=>$('#uN',m).focus(),120);
+  });
+}
 
 /* ================= the search box in the header ================= */
 function wireSearch(){
@@ -1107,10 +1171,22 @@ function wireLogin(){
   const rem=$('#lgRem');let keep=true;
   rem.onclick=e=>{e.preventDefault();keep=!keep;rem.classList.toggle('on',keep);rem.setAttribute('aria-checked',String(keep))};
   $('#lgEye').onclick=()=>{const p=$('#lgPw');p.type=p.type==='password'?'text':'password';$('#lgEye').innerHTML=ic(p.type==='password'?'eye':'eyeoff')};
-  $('#lgForm').onsubmit=e=>{
+  $('#lgForm').onsubmit=async e=>{
     e.preventDefault();
-    const id=$('#lgId').value.trim();
-    if(id){S.me.name=id[0].toUpperCase()+id.slice(1);}
+    const id=$('#lgId').value.trim(),pw=$('#lgPw').value;
+    const btn=$('#lgBtn');btn.disabled=true;
+    let ok=true,name=id?id[0].toUpperCase()+id.slice(1):'Counter';
+    try{
+      const r=await API.post('/users',{signin:1,login:id.toLowerCase(),pass:pw});
+      ok=!!r.ok;if(r.name)name=r.name;
+    }catch(err){
+      /* no database, or it cannot be reached: the desk is open, as it has
+         always been when there is nothing behind it */
+      ok=true;
+    }
+    btn.disabled=false;
+    if(!ok){toast('That did not match','Check the login and the password',{icon:'lock',tone:'bad'});return}
+    S.me.name=name;
     if(keep)LS.set('in',S.me.name);
     $('#meName').textContent=S.me.name;
     $('#meAv').textContent=ini(S.me.name);

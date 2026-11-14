@@ -18,6 +18,8 @@ import { neon } from '@neondatabase/serverless';
  *                 conversation that is happening right now and answer in it
  *   fm_threads    one row per chatting device: who they are and whether a
  *                 member of staff has taken the conversation over from the AI
+ *   fm_users      who may open the order desk. The password itself is never
+ *                 stored: only a random salt and a SHA-256 of salt+password
  *   fm_menu       the few menu facts the counter controls: whether an item or a
  *                 whole category is being offered, and a changed price. The
  *                 website reads it, so switching something off here sells out
@@ -94,6 +96,13 @@ export function db() {
     await sql`create index if not exists fm_messages_dev on fm_messages (device_id, id)`;
     await sql`create index if not exists fm_threads_up   on fm_threads (updated_at desc)`;
 
+    await sql`create table if not exists fm_users (
+      login       text primary key,
+      name        text not null,
+      salt        text not null,
+      hash        text not null,
+      created_at  timestamptz not null default now()
+    )`;
     await sql`create table if not exists fm_menu (
       item_id     text primary key,
       kind        text not null default 'item',

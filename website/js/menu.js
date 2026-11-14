@@ -21,7 +21,7 @@ const FM_BIZ={
   insta:'https://www.instagram.com/foodiesmania20/',
   instaHandle:'@foodiesmania20',
   map:'https://maps.google.com/?q=Foodies+Mania+Block+8+Federal+B+Area+Karachi',
-  eta:'35 to 45 min', pickupEta:'20 to 25 min'
+  eta:'40 to 60 min', pickupEta:'20 to 25 min'
 };
 
 const FM_CATS=[
@@ -318,6 +318,11 @@ const FM_LIVE={
       }
     });
     FM_CATS.forEach(c=>c.off=!!catOff[c.id]);
+    /* a delivery fee the counter has changed */
+    (d.areas||[]).forEach(r=>{
+      const a=FM_AREAS.find(x=>x.name===r.item_id);
+      if(a&&r.price!=null){const f=Number(r.price);if(Number.isFinite(f)&&f>=0)a.fee=f}
+    });
     this.loaded=true;
     this.subs.forEach(f=>{try{f()}catch(e){console.error(e)}});
   },
