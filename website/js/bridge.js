@@ -59,17 +59,25 @@ const Bridge=(()=>{
       if(r.status===503){live=false;return}
       if(!r.ok)return;
       const {orders=[]}=await r.json();
-      const map=read(SK,{});let moved=false;
+      const map=read(SK,{});const mine=read(MK,[]);let moved=false;
       orders.forEach(o=>{
         const was=map[o.id];
         if(!was||was.status!==o.status){map[o.id]={type:'status',id:o.id,status:o.status,pickup:o.kind==='pickup',t:Date.now()};moved=true}
+        /* the server is the one that remembers: an order it knows about and
+           this browser does not goes back on the list */
+        if(!mine.some(x=>x.id===o.id)){
+          mine.push({id:o.id,placed:new Date(o.placed_at).getTime()||Date.now(),total:Number(o.total)||0,type:o.kind,items:[]});moved=true}
       });
-      if(moved){write(SK,map);emit({type:'status-all'})}
+      if(moved){
+        mine.sort((a,b)=>b.placed-a.placed);
+        write(MK,mine.slice(0,20));write(SK,map);emit({type:'status-all'})}
     }catch{}
   }
+  /* once on load whatever the tab is doing, so a page opened in the background
+     is already right when it is looked at; after that only while it is in front */
   const beat=()=>{if(document.visibilityState!=='visible')return;drain();pull()};
   addEventListener('visibilitychange',beat);addEventListener('online',beat);
-  setTimeout(beat,600);setInterval(beat,8000);
+  setTimeout(()=>{drain();pull()},500);setInterval(beat,8000);
 
   const newId=()=>'FMW-'+(Date.now()%1e6).toString().padStart(6,'0');
   return {
