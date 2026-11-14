@@ -269,12 +269,16 @@ const FM_AREAS=[
  ['North Karachi',200],['New Karachi',210],['Gulistan-e-Johar',220],['Scheme 33',220],['Tariq Road',210],['Saddar',220],
  ['Shah Faisal Colony',230],['Clifton',230],['DHA',230]].map(a=>({name:a[0],fee:a[1]}));
 
-/* the same four ways to pay as the CRM. Account details are DEMO placeholders. */
+/* The four ways to pay, with the restaurant's real accounts. An online payment
+   is only taken as paid once the counter sees a transaction ID or a screenshot. */
 const FM_PAY=[
  {id:'COD',name:'Cash on Delivery',short:'Cash',note:'Pay the rider in cash.'},
- {id:'EasyPaisa',name:'EasyPaisa',short:'EasyPaisa',acct:'0335-2115129',title:'Foodies Mania (demo)'},
- {id:'JazzCash',name:'JazzCash',short:'JazzCash',acct:'0300-0000000',title:'Foodies Mania (demo)'},
- {id:'Bank',name:'Bank Transfer',short:'Bank',acct:'PK00 DEMO 0000 0000 0000 0000',title:'Foodies Mania · Demo Bank'}
+ {id:'Bank',name:'Bank Transfer',short:'Bank',bank:'HBL',title:'SHAHNAWAZ',
+  lines:[['Bank','HBL'],['Account title','SHAHNAWAZ'],['Account number','11187901158303'],['IBAN','PK23HABB0011187901158303']]},
+ {id:'EasyPaisa',name:'EasyPaisa',short:'EasyPaisa',title:'M ALI',
+  lines:[['EasyPaisa number','0310 3305318'],['Account title','M ALI']]},
+ {id:'JazzCash',name:'JazzCash',short:'JazzCash',title:'Shahnawaz Barkat',
+  lines:[['JazzCash number','0316 2108078'],['Account title','Shahnawaz Barkat']]}
 ];
 
 const FM_BYID={};FM_ITEMS.forEach(i=>FM_BYID[i.id]=i);

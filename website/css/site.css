@@ -333,6 +333,29 @@ em{font-style:normal;background:var(--grad);-webkit-background-clip:text;backgro
 .paybox{margin-top:10px;padding:15px;border-radius:16px;background:var(--bg2);border:1px dashed var(--line2);font-size:14px;line-height:1.6}
 .paybox b{color:var(--or2)}
 .demo{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.08em;background:var(--warn);color:var(--onor);border-radius:6px;padding:2px 6px;margin-left:6px;vertical-align:middle}
+/* the account to pay into: every line can be copied with one tap */
+.pay-amt{font-size:13.5px;color:var(--mut)}
+.pay-amt b{font-size:15px}
+.pay-acct{margin-top:10px;display:grid;gap:1px;border-radius:12px;overflow:hidden;background:var(--line)}
+.pa-row{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel);font-size:13.5px}
+.pa-row span{flex:none;width:112px;color:var(--dim);font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.pa-row b{flex:1;min-width:0;color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;letter-spacing:.01em;word-break:break-all}
+.pa-copy{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:var(--dim);border:1px solid var(--line);transition:all .2s}
+.pa-copy:hover{color:var(--or2);border-color:var(--line2);background:var(--orsoft)}
+.pa-copy.ok{color:var(--ok);border-color:var(--ok)}
+.pa-copy.ok svg{display:none}
+.pa-copy.ok::after{content:"¹3";font-weight:800;font-size:14px}
+
+/* the address box, with the button that fills it from the phone's own position */
+.addr-in{position:relative;display:flex;align-items:center}
+.addr-in input{padding-right:132px}
+.locate{position:absolute;right:6px;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;
+  background:var(--orsoft);border:1px solid var(--line2);color:var(--or2);font-size:12.5px;font-weight:700;transition:all .2s;white-space:nowrap}
+.locate:hover{background:var(--or);color:var(--onor);border-color:transparent}
+.locate:disabled{opacity:.7;cursor:progress}
+.locate.busy svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (max-width:460px){.locate span{display:none}.locate{padding:0 10px}.addr-in input{padding-right:52px}}
 .seg2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .seg2 button{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:18px;border-radius:18px;border:1px solid var(--line2);text-align:left;transition:all .25s}
 .seg2 button:hover{background:var(--panel2)}
@@ -353,6 +376,19 @@ em{font-style:normal;background:var(--grad);-webkit-background-clip:text;backgro
 .step b{display:block;margin-top:5px}
 .step small{color:var(--mut);font-size:13px}
 .step:not(.done):not(.cur) b{color:var(--dim)}
+/* the order card says one thing: taken on, or not yet */
+.trk2{display:flex;align-items:center;gap:16px;margin:18px 0 10px;padding:20px;border-radius:18px;border:1px solid var(--line2);background:var(--bg2)}
+.trk2 .t2-ic{flex:none;width:52px;height:52px;border-radius:50%;display:grid;place-items:center}
+.trk2 .t2-t b{display:block;font-family:var(--f-display);font-size:19px;line-height:1.2}
+.trk2 .t2-t small{display:block;margin-top:3px;font-size:13.5px;color:var(--mut)}
+.trk2.wait{border-color:rgba(255,182,72,.35);background:linear-gradient(140deg,rgba(255,182,72,.12),var(--bg2) 60%)}
+.trk2.wait .t2-ic{background:var(--orsoft);color:var(--warn)}
+.trk2.wait .t2-ic i{width:13px;height:13px;border-radius:50%;background:var(--warn);animation:pulse 1.6s infinite}
+.trk2.ok{border-color:rgba(63,207,125,.4);background:linear-gradient(140deg,var(--oksoft),var(--bg2) 60%)}
+.trk2.ok .t2-ic{background:var(--oksoft);color:var(--ok);animation:tpop .5s var(--ease)}
+.trk2.gone{border-color:rgba(255,93,85,.4)}
+.trk2.gone .t2-ic{background:rgba(255,93,85,.14);color:var(--bad)}
+@keyframes tpop{from{transform:scale(.6);opacity:0}}
 .note-crm{font-size:12.5px;color:var(--dim);padding:12px 14px;border-radius:12px;background:var(--bg2);margin-top:8px}
 .myo{display:grid;gap:10px;padding:8px 26px 26px}
 .myo button{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px;border-radius:16px;border:1px solid var(--line2);text-align:left}

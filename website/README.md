@@ -51,6 +51,19 @@ tools/fetch-images.py  downloads the menu photos into assets/food/
 - **What the agent says:** `js/agent.js`. Every line exists in English and Roman Urdu,
   and the agent answers in whichever language the customer writes in.
 
+## Where an order goes
+
+An order leaves the checkout by two roads at once, and either one alone is
+enough. It is written to the database behind `/api/order`, which is where the
+dashboard reads it from, and it is also queued in this browser, which is how
+the demo works with no database at all. An order placed with no signal waits
+in an outbox and goes the moment there is one.
+
+Coming back, the customer is told one thing: whether the restaurant has taken
+the order on. They never sign in. The browser keeps a device id, the order
+carries it, and the server only hands back orders bearing the id it was asked
+with, so an order number on its own opens nothing.
+
 ## How the CRM link works (demo)
 
 Both apps run on the same origin, so the browser connects them. The website puts

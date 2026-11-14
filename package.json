@@ -1,11 +1,14 @@
 {
-  "name": "foodies-mania-crm",
+  "name": "foodies-mania",
   "private": true,
   "version": "1.0.0",
-  "description": "Foodies Mania CRM - WhatsApp order console (static front end)",
+  "description": "Foodies Mania: the ordering website and the staff dashboard",
   "type": "module",
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0"
   }
 }

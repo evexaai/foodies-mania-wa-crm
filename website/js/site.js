@@ -21,6 +21,14 @@ function openNow(){const h=new Date().getHours();return h>=FM_BIZ.open||h<FM_BIZ
 function paintOpen(){const o=openNow();const t=$('#openTxt');if(!t)return;t.textContent=o?'Open now · till 5 AM':'Opens today at 6 PM · order ahead';const d=t.previousElementSibling;d&&d.classList.toggle('off',!o)}
 
 /* ---------- toasts ---------- */
+/* tap to copy: the clipboard where it is allowed, a hidden box where it is not */
+async function copyText(txt,btn){
+  try{await navigator.clipboard.writeText(txt)}
+  catch{const t=document.createElement('textarea');t.value=txt;t.style.cssText='position:fixed;opacity:0';
+    document.body.appendChild(t);t.select();try{document.execCommand('copy')}catch{}t.remove()}
+  if(btn){btn.classList.add('ok');setTimeout(()=>btn.classList.remove('ok'),1300)}
+  toast('Copied');
+}
 function toast(text,img){const t=document.createElement('div');t.className='toast';t.innerHTML=`${img?`<img src="${img}" alt="">`:''}<span>${text}</span>`;
   $('#toasts').appendChild(t);setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),300)},2400)}
 
@@ -99,6 +107,33 @@ function drawCart(){
   $('#toCheckout')&&($('#toCheckout').onclick=()=>{closeDrawer();setTimeout(()=>checkout(),220)});
 }
 
+/* ---------- addresses this device has used before ---------- */
+const addrBook=()=>{try{return JSON.parse(localStorage.getItem('fm.addrs'))||[]}catch{return[]}};
+const rememberAddr=a=>{a=String(a||'').trim();if(a.length<6)return;
+  const L=[a,...addrBook().filter(x=>x.toLowerCase()!==a.toLowerCase())].slice(0,6);
+  try{localStorage.setItem('fm.addrs',JSON.stringify(L))}catch{}};
+
+/* ---------- "Locate me" ----------
+   The browser's own position, turned into a street line by OpenStreetMap, and
+   the delivery area picked from what comes back. Only ever on a tap, and
+   whatever lands in the box can be edited: no one knows the gate code but the
+   customer. */
+const normTxt=s=>' '+String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()+' ';
+const AREA_ALIAS={'F.B. Area':['federal b area','f b area','fb area','block 8','block 16','block 18'],
+  'F.C. Area':['fc area','f c area'],'P.E.C.H.S':['pechs','p e c h s'],'DHA':['defence housing authority','defence'],
+  'Scheme 33':['scheme 33','gulzar e hijri'],'Gulshan-e-Iqbal':['gulshan e iqbal','gulshan iqbal'],
+  'North Nazimabad':['north nazimabad'],'New Karachi':['new karachi'],'North Karachi':['north karachi']};
+const areaFromText=t=>{const n=normTxt(t);
+  return (FM_AREAS.find(a=>n.includes(normTxt(a.name))||(AREA_ALIAS[a.name]||[]).some(x=>n.includes(' '+x+' ')))||{}).name||''};
+async function geoAddr(lat,lon){
+  const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat=${lat}&lon=${lon}`,{headers:{Accept:'application/json'}});
+  if(!r.ok)throw new Error('lookup failed');
+  const j=await r.json(),a=j.address||{};
+  const parts=[a.house_number&&a.road?`${a.house_number} ${a.road}`:a.road,a.neighbourhood||a.quarter,a.suburb,a.city_district];
+  return {line:[...new Set(parts.filter(Boolean))].join(', '),
+    area:areaFromText([a.neighbourhood,a.quarter,a.suburb,a.city_district,j.display_name].join(' '))};
+}
+
 /* ---------- checkout ---------- */
 /* `keep` carries what was typed when the switch or the area re-draws the form */
 function checkout(keep){
@@ -109,24 +144,31 @@ function checkout(keep){
   let pay=v.pay,txn=v.txn||'',shot=v.shot||'';const del=m.type==='delivery';
   const total=()=>Cart.subtotal()+Mode.fee();
   const payInfo=()=>{const p=FM_PAY.find(x=>x.id===pay);if(pay==='COD')return `<div class="paybox">${del?'Pay the rider in cash when your food arrives.':'Pay in cash at the counter when you collect.'}</div>`;
-    return `<div class="paybox" id="payBox">Send <b>${fmRs(total())}</b> to<br><b>${p.name}</b> · ${p.acct}<br>${p.title}<span class="demo">DEMO</span>
+    return `<div class="paybox" id="payBox"><div class="pay-amt">Send <b>${fmRs(total())}</b> to this ${p.name} account</div>
+      <div class="pay-acct">${p.lines.map(([k,val])=>`<div class="pa-row"><span>${esc(k)}</span><b>${esc(val)}</b><button type="button" class="pa-copy" data-copy="${esc(val.replace(/\s/g,''))}" aria-label="Copy ${esc(k)}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></button></div>`).join('')}</div>
       <div class="field" style="margin-top:12px"><label for="ctxn">Transaction ID</label><input id="ctxn" value="${esc(txn)}" placeholder="From your ${p.name} receipt" autocomplete="off"></div>
       <div class="or">or</div>
       <label class="shot${shot?' has':''}" id="shotL"><input type="file" id="cshot" accept="image/*" hidden><span class="sq">${shot?`<img src="${shot}" alt="Payment screenshot">`:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>'}</span><span class="grow"><b>${shot?'Screenshot attached':'Upload payment screenshot'}</b><small>${shot?'Tap to change it':'PNG or JPG from your banking app'}</small></span></label>
       <p class="pay-err">Add the transaction ID or upload the payment screenshot</p></div>`};
   /* a phone screenshot is shrunk before it is sent: ~1000px JPEG */
   const squeeze=f=>new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const im=new Image();im.onerror=rej;im.onload=()=>{const k=Math.min(1,1000/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.72))};im.src=r.result};r.readAsDataURL(f)});
-  const wirePay=el=>{const t=$('#ctxn',el),f=$('#cshot',el);if(!t)return;
+  const wirePay=el=>{
+    $$('.pa-copy',el).forEach(b=>b.onclick=()=>copyText(b.dataset.copy,b));
+    const t=$('#ctxn',el),f=$('#cshot',el);if(!t)return;
     t.oninput=()=>{txn=t.value;$('#payBox',el).classList.remove('bad')};
     f.onchange=async()=>{const file=f.files[0];if(!file)return;try{shot=await squeeze(file);$('#payInfo',el).innerHTML=payInfo();wirePay(el)}catch{toast('That file could not be read. Try a PNG or JPG.')}}};
   openModal(`<div class="m-h"><h3 class="grow">Checkout</h3><button class="x" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
    <div class="m-b" style="padding-top:6px">
     <div class="seg2" id="ctype"><button data-t="delivery" class="${del?'on':''}"><b>Delivery</b><small>${FM_BIZ.eta} across Karachi</small></button><button data-t="pickup" class="${del?'':'on'}"><b>Pickup</b><small>Ready in ~${FM_BIZ.pickupEta}</small></button></div>
-    ${del?`<div class="field" id="fAr"><label for="carea">Your area</label><select id="carea"><option value="">Select your area</option>${FM_AREAS.map(a=>`<option${a.name===m.area?' selected':''} value="${esc(a.name)}">${esc(a.name)} · ${fmRs(a.fee)} delivery</option>`).join('')}</select><span class="err">Please choose your area</span></div>`
+    ${del?`<div class="field" id="fAr"><label for="carea">Your area</label><select id="carea"><option value="">Select your area</option>${FM_AREAS.map(a=>`<option${a.name===m.area?' selected':''} value="${esc(a.name)}">${esc(a.name)}</option>`).join('')}</select><span class="err">Please choose your area</span></div>`
       :`<div class="paybox"><b>Foodies Mania, F.B. Area</b><br>${FM_BIZ.addr}<br>${FM_BIZ.hours}</div>`}
     <div class="row2"><div class="field" id="fN"><label for="cname">Your name</label><input id="cname" autocomplete="name" value="${esc(v.name)}" placeholder="Full name"><span class="err">Please enter your name</span></div>
     <div class="field" id="fP"><label for="cphone">Mobile number</label><input id="cphone" type="tel" inputmode="tel" autocomplete="tel" value="${esc(v.phone)}" placeholder="03xx xxxxxxx"><span class="err">Enter an 11-digit number starting with 03</span></div></div>
-    ${del?`<div class="field" id="fA"><label for="caddr">Full address${m.area?' in '+esc(m.area):''}</label><input id="caddr" autocomplete="street-address" value="${esc(v.addr)}" placeholder="House, street, block, nearby landmark"><span class="err">Please enter your address</span></div>`:''}
+    ${del?`<div class="field" id="fA"><label for="caddr">Full address${m.area?' in '+esc(m.area):''}</label>
+      <div class="addr-in"><input id="caddr" autocomplete="street-address" list="addrBook" value="${esc(v.addr)}" placeholder="House, street, block, nearby landmark">
+        <button type="button" class="locate" id="cloc" aria-label="Use my location"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></svg><span>Locate me</span></button></div>
+      <datalist id="addrBook">${addrBook().map(a=>`<option value="${esc(a)}"></option>`).join('')}</datalist>
+      <span class="err">Please enter your address</span></div>`:''}
     <div class="field"><label for="cnote">Note for the kitchen <span style="color:var(--dim)">(optional)</span></label><input id="cnote" value="${esc(v.note)}" placeholder="e.g. less spicy, extra ketchup"></div>
     <div class="opt-h">Payment</div>
     <div class="opts">${FM_PAY.map(p=>`<label class="opt${p.id===pay?' on':''}"><input type="radio" name="pay" value="${p.id}"${p.id===pay?' checked':''}><b>${p.id==='COD'?(del?'Cash on Delivery':'Cash at counter'):p.name}</b><span>${p.id==='COD'?'Cash':'Online'}</span></label>`).join('')}</div>
@@ -137,6 +179,23 @@ function checkout(keep){
    <div class="m-f"><button class="btn pri lg block" id="place">Place order · ${fmRs(total())}</button></div>`,el=>{
     const grab=()=>({name:$('#cname',el).value,phone:$('#cphone',el).value,addr:del?$('#caddr',el).value:v.addr,note:$('#cnote',el).value,pay,txn,shot});
     wirePay(el);
+    const loc=$('#cloc',el);
+    if(loc)loc.onclick=()=>{
+      if(!navigator.geolocation)return toast('This browser cannot share a location');
+      loc.classList.add('busy');loc.disabled=true;
+      const done=()=>{loc.classList.remove('busy');loc.disabled=false};
+      navigator.geolocation.getCurrentPosition(async pos=>{
+        try{
+          const {line,area}=await geoAddr(pos.coords.latitude,pos.coords.longitude);
+          const inp=$('#caddr',el);
+          if(line){inp.value=line;$('#fA',el).classList.remove('bad')}
+          done();
+          if(area&&area!==Mode.get().area){Mode.set({type:'delivery',area});return checkout({...grab(),addr:line||inp.value})}
+          toast(line?'Address filled in. Add your house or floor.':'We could not read the street. Please type it.');
+          inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);
+        }catch{done();toast('Could not look that address up. Please type it.')}
+      },err=>{done();toast(err.code===1?'Location permission was declined':'Could not get your location')},
+      {enableHighAccuracy:true,timeout:12000,maximumAge:60000})};
     $$('#ctype [data-t]',el).forEach(b=>b.onclick=()=>{if(b.dataset.t===m.type)return;Mode.set({type:b.dataset.t,area:m.area});checkout(grab())});
     $('#carea',el)&&($('#carea',el).onchange=e=>{Mode.set({type:'delivery',area:e.target.value});checkout(grab())});
     $$('input[name=pay]',el).forEach(r=>r.onchange=()=>{pay=r.value;$$('.opt',el).forEach(o=>o.classList.toggle('on',o.contains(r)));$('#payInfo',el).innerHTML=payInfo();wirePay(el)});
@@ -150,24 +209,22 @@ function checkout(keep){
       const order=Bridge.send({id:Bridge.newId(),src:'web',type:m.type,name,phone,area:del?m.area:'Pickup',addr:del?addr:'Pickup from F.B. Area counter',fee:Mode.fee(),pay,txn:pay==='COD'?'':txn.trim(),shot:pay==='COD'?'':shot,note:$('#cnote',el).value.trim(),
         items:Cart.orderLines(),subtotal:Cart.subtotal(),total:total()});
       try{localStorage.setItem('fm.me',JSON.stringify({name,phone,area:del?m.area:me.area,addr:del?addr:me.addr}))}catch{}
+      if(del)rememberAddr(addr);
       Cart.clear();tracker(order.id,true)};
   })}
 
-/* ---------- live tracker: follows the CRM ---------- */
+/* ---------- the order card: approved, or not yet ---------- */
 let trackOff=null;
+const tickSvg='<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>';
+const crossSvg='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 function tracker(id,fresh){
   const mine=Bridge.mine().find(o=>o.id===id)||{};const pickup=mine.type==='pickup';
-  const steps=pickup?[['new','1','Order placed'],['approved','2','Approved'],['preparing','3','Cooking'],['ready','4','Ready for pickup'],['delivered','5','Collected']]
-    :[['new','1','Order placed'],['approved','2','Approved'],['preparing','3','Cooking'],['out','4','On the way'],['delivered','5','Delivered']];
-  const order=['queued','new','approved','preparing','ready','out','delivered'];
   const paint=()=>{const s=Bridge.status(id);const st=s?s.status:'queued';const g=fmStage(st,pickup);const el=$('#trk');if(!el)return;
-    const si=order.indexOf(st);const next=steps.findIndex(x=>order.indexOf(x[0])>si);
-    el.innerHTML=st==='cancelled'?`<div class="note-crm" style="color:var(--bad)">${g.s}</div>`:
-      `<div class="steps">${steps.map((x,k)=>{const i=order.indexOf(x[0]);const done=si>=i;const cur=k===next;
-        return `<div class="step ${done?'done':''} ${cur?'cur':''}"><span class="dot">${done?'✓':x[1]}</span><div><b>${x[2]}</b><small>${x[0]===st||(cur&&!steps.some(y=>y[0]===st))?g.s:''}${x[0]==='out'&&s&&s.rider&&si>=i?' · Rider '+esc(s.rider.split(' ')[0]):''}</small></div></div>`}).join('')}</div>
-       ${st==='queued'?`<div class="note-crm">Demo: this order is waiting for the restaurant. Open the <a href="../dashboard/" target="_blank" style="color:var(--or2)">dashboard</a>, sign in, and approve it to watch this move.</div>`:''}`};
+    el.className='trk2 '+(g.gone?'gone':g.ok?'ok':'wait');
+    el.innerHTML=`<span class="t2-ic">${g.gone?crossSvg:g.ok?tickSvg:'<i></i>'}</span>
+      <div class="t2-t"><b>${esc(g.t)}</b><small>${esc(g.s)}</small></div>`};
   openModal(`<div class="m-h"><div class="grow">${fresh?'<p class="kicker">Order placed</p>':''}<h3>${fresh?'Shukriya!':'Your order'}</h3><div class="trk-id">${id} · ${mine.total?fmRs(mine.total):''}</div></div><button class="x" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
-    <div class="track"><div id="trk"></div>${mine.items?`<div class="note-crm" style="color:var(--mut)">${mine.items.map(esc).join(' · ')}</div>`:''}</div>
+    <div class="track"><div id="trk" class="trk2 wait"></div>${mine.items?`<div class="note-crm" style="color:var(--mut)">${mine.items.map(esc).join(' · ')}</div>`:''}</div>
     <div class="m-f"><a class="btn block" href="order-chat.html">Questions? Chat with us</a>${Bridge.mine().length>1?'<button class="btn block" id="trkMore">Your earlier orders</button>':''}</div>`,
     el=>{paint();const b=$('#trkMore',el);if(b)b.onclick=()=>myOrders()});
   trackOff&&trackOff();trackOff=Bridge.on(m=>{if((m.type==='status'&&m.id===id)||m.type==='status-all'||m.type==='ack')paint()});
@@ -191,7 +248,7 @@ function liveBar(){
   const paint=()=>{const o=liveOrder();
     if(!o){el.hidden=true;return}
     const s=Bridge.status(o.id),st=s?s.status:'queued',g=fmStage(st,o.type==='pickup');
-    el.hidden=false;el.className='live-ord'+(st==='delivered'?' done':'');
+    el.hidden=false;el.className='live-ord'+(g.ok?' done':'');
     el.innerHTML=`<span class="lo-dot" aria-hidden="true"></span><span class="lo-t"><b>${esc(g.t)}</b><small>${esc(o.id)} · ${esc(g.s)}</small></span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>`;
     el.setAttribute('aria-label',`Order ${o.id}: ${g.t}. Open your order`);
@@ -203,7 +260,7 @@ function myOrders(){
   if(L.length===1)return tracker(L[0].id);
   openModal(`<div class="m-h"><h3 class="grow">Track your order</h3><button class="x" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
    <div class="myo">${L.length?L.map(o=>{const s=Bridge.status(o.id);const st=s?s.status:'queued';const g=fmStage(st,o.type==='pickup');
-     return `<button data-o="${o.id}"><span><b>${o.id}</b><br><small style="color:var(--mut)">${new Date(o.placed).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})} · ${fmRs(o.total)}</small></span><span class="pill ${st==='delivered'?'ok':st==='cancelled'?'bad':''}">${g.t}</span></button>`}).join('')
+     return `<button data-o="${o.id}"><span><b>${o.id}</b><br><small style="color:var(--mut)">${new Date(o.placed).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})} · ${fmRs(o.total)}</small></span><span class="pill ${g.ok?'ok':g.gone?'bad':''}">${g.ok?'Approved':g.gone?'Cancelled':'Waiting'}</span></button>`}).join('')
      :`<div class="empty"><div class="big"></div><p>No orders on this device yet.</p></div>`}</div>`,el=>$$('[data-o]',el).forEach(b=>b.onclick=()=>tracker(b.dataset.o)))}
 
 /* ---------- hero slider ---------- */

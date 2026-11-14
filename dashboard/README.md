@@ -6,6 +6,19 @@ a rider takes it to the door.
 This is the single-file prototype (`reference/Foodies Mania CRM (original prototype).html`)
 split into a real project. No build step, no framework, no dependencies: plain HTML, CSS and JS.
 
+## Where website orders come from
+
+Orders placed on the website are written to Neon and this screen reads them
+from `/api/orders`, every seven seconds while the tab is in front. That is
+what makes an order survive a closed tab: it is on the board on any computer,
+including ones placed while nobody was looking. Moving an order along writes
+the new status back, and the customer sees it on their own phone.
+
+Without `DATABASE_URL` set, the API answers "no database" and the board falls
+back to orders from a website open in this same browser, which is how the demo
+has always worked. Setting up the database is in the
+[README one level up](../README.md).
+
 ## What the controls do
 
 - **Light / dark mode**: the sun/moon button in the top bar. Light mode keeps the

@@ -721,16 +721,68 @@ const A={
    BroadcastChannel "fm-web"; we take it from either and drop it on the board
    like any other order. Every status change goes back the same way
    (fm.web.status), so the customer's tracker on the site moves as you work. */
+const RANK={new:0,approved:1,preparing:2,ready:3,out:4,delivered:5,cancelled:6};
 const WEB={
  ch:('BroadcastChannel' in window)?new BroadcastChannel('fm-web'):null,
  sent:{},
  SRC:{web:'Website',widget:'Site chat',chat:'Chat page'},
  read(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},
  write(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}},
+ /* the database, when there is one behind /api. Without it the board still
+    works: orders then come only from a website open in this same browser. */
+ api:true, since:null, pulling:false,
+ key(){try{return localStorage.getItem('fm.staffkey')||''}catch{return''}},
+ head(){const k=this.key();return k?{'x-fm-key':k}:{}},
  start(){
    if(this.ch)this.ch.onmessage=e=>{if(e.data&&e.data.type==='order')this.take()};
    addEventListener('storage',e=>{if(e.key==='fm.web.queue')this.take()});
    this.take();
+   const beat=()=>{if(document.visibilityState==='visible')this.pull()};
+   addEventListener('visibilitychange',beat);addEventListener('online',beat);
+   beat();setInterval(beat,7000);
+ },
+ /* orders the website wrote into Neon, including ones placed while this
+    screen was closed. Only orders the board has not seen are taken on; a
+    status another counter has moved further along is adopted. */
+ async pull(){
+   if(!this.api||this.pulling)return;this.pulling=true;
+   try{
+     const r=await fetch('/api/orders'+(this.since?'?since='+encodeURIComponent(this.since):''),{headers:{accept:'application/json',...this.head()}});
+     if(r.status===503){this.api=false;return}
+     if(r.status===401){const k=prompt('Staff key for the order book');
+       if(k&&k.trim()){try{localStorage.setItem('fm.staffkey',k.trim())}catch{}}
+       else{this.api=false;toast('The order book is locked',"Website orders will not reach this screen",{icon:'x',tone:'bad'})}
+       return}
+     if(!r.ok)return;
+     const {orders=[],now:stamp}=await r.json();
+     this.since=stamp||this.since;
+     let moved=false;
+     orders.slice().reverse().forEach(row=>{
+       const have=S.omap[row.id];
+       if(!have){this.land(row);moved=true;return}
+       if(have.web&&RANK[row.status]>RANK[have.status]){have.status=row.status;this.sent[row.id]=row.status;moved=true}
+     });
+     if(moved)changed();
+   }catch{}
+   finally{this.pulling=false}
+ },
+ /* one row from the database, put on the board the way a chat order is */
+ land(row){
+   const w={id:row.id,src:row.src||'web',type:row.kind,name:row.name,phone:row.phone,area:row.area,addr:row.address,
+     fee:Number(row.fee)||0,pay:row.pay,txn:row.txn||'',shot:row.shot||'',note:row.note||'',
+     items:(row.items||[]).map(i=>({id:i.id,name:i.name,size:i.size,cat:i.cat,price:Number(i.price)||0,qty:Number(i.qty)||1,note:i.note||''}))};
+   const c=this.customer(w);const pickup=w.type==='pickup';
+   /* the database remembers this phone number from before: the counter should
+      see a returning customer as one, not as a stranger */
+   const been=Math.max(0,(Number(row.customer_orders)||1)-1);
+   if(been&&!c.n){c.n=been;c.spent=Math.max(0,(Number(row.customer_spent)||0)-(Number(row.total)||0));
+     if(row.customer_since)c.since=new Date(row.customer_since).getTime()||c.since}
+   const o=calc({id:w.id,cid:c.id,items:w.items.map(l=>({mid:this.mid(l),qty:l.qty,note:l.note||''})),note:[w.note,w.txn?'TID '+w.txn:''].filter(Boolean).join(' · '),
+     area:pickup?'Pickup':w.area,addr:w.addr,fee:w.fee,pay:w.pay,paid:false,status:row.status||'new',
+     t:{placed:new Date(row.placed_at).getTime()||now()},rider:null,src:w.src,web:true,pickup,txn:w.txn,shot:w.shot});
+   addOrder(o);this.sent[o.id]=o.status;
+   if(o.status==='new')notify('newOrder',`New ${this.SRC[w.src]||'website'} order ${o.id}`,`${c.name} · ${pickup?'Pickup':o.area} · ${rs(o.total)}`,{page:'orders',order:o.id},{icon:pickup?'take':'store'});
+   if(o.status==='new'&&S.set.autoKitchen)setTimeout(()=>A.approve(o.id,true),5000);
  },
  /* the website names dishes, the board needs menu ids; a dish or size the CRM
     has not seen yet is added to the menu so the kitchen sees exactly what was ordered */
@@ -763,11 +815,17 @@ const WEB={
    });
    changed();
  },
- /* tell the website what moved since last time */
+ /* tell the customer what moved: the database first, so any device of theirs
+    sees it, and the local map too, for a website open in this browser */
+ push(id,status){
+   if(!this.api)return;
+   fetch('/api/orders',{method:'POST',headers:{'content-type':'application/json',...this.head()},body:JSON.stringify({id,status})})
+     .then(r=>{if(r.status===503||r.status===401)this.api=false}).catch(()=>{});
+ },
  sync(){
    let map=null;
    S.orders.forEach(o=>{if(!o.web||this.sent[o.id]===o.status)return;
-     this.sent[o.id]=o.status;map=map||this.read('fm.web.status',{});
+     this.sent[o.id]=o.status;this.push(o.id,o.status);map=map||this.read('fm.web.status',{});
      const r=S.riders.find(x=>x.id===o.rider);
      const msg={type:'status',id:o.id,status:o.status,pickup:!!o.pickup,rider:r?r.name:'',riderPhone:r?r.phone:'',t:Date.now()};
      map[o.id]=msg;this.ch&&this.ch.postMessage(msg)});

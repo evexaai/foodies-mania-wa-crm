@@ -48,14 +48,11 @@ const t12=ts=>new Date(ts).toLocaleTimeString('en-GB',{hour:'numeric',minute:'2-
 const meta=(l,r)=>`<div class="tk-meta"><span>${l}</span><span class="tk-r"><span>${r}</span><button class="tk-clr" id="tkClear" aria-label="Clear the ticket">Clear</button></span></div>`;
 const head=sub=>`<div class="tk-h"><img src="assets/logo.webp" alt=""><b>Foodies Mania</b><small>${sub}</small></div>`;
 
+/* the customer is shown one thing: has the restaurant taken the order on */
 function trackerHtml(o){
-  const pk=o.type==='pickup';const s=Bridge.status(o.id);const st=s?s.status:'queued';const g=fmStage(st,pk);
-  if(st==='cancelled')return `<p style="color:#c2410c;font-size:12.5px;padding:8px 0">${g.s}</p>`;
-  const steps=pk?[['new','1','Order placed'],['approved','2','Approved'],['preparing','3','Cooking'],['ready','4','Ready for pickup'],['delivered','5','Collected']]
-    :[['new','1','Order placed'],['approved','2','Approved'],['preparing','3','Cooking'],['out','4','On the way'],['delivered','5','Delivered']];
-  const order=['queued','new','approved','preparing','ready','out','delivered'];const si=order.indexOf(st);const next=steps.findIndex(x=>order.indexOf(x[0])>si);
-  return `<div class="trk">${steps.map((x,k)=>{const done=si>=order.indexOf(x[0]);const cur=k===next;
-    return `<div class="trk-s ${done?'done':''} ${cur?'cur':''}"><span class="d">${done?'✓':x[1]}</span><div><b>${x[2]}</b>${x[0]===st||(cur&&!steps.some(y=>y[0]===st))?`<small>${g.s}${x[0]==='out'&&s&&s.rider?' · '+esc(s.rider.split(' ')[0]):''}</small>`:''}</div></div>`}).join('')}</div>`}
+  const s=Bridge.status(o.id);const g=fmStage(s?s.status:'queued',o.type==='pickup');
+  return `<div class="trk2 ${g.gone?'gone':g.ok?'ok':'wait'}"><span class="t2-ic">${g.gone?'✕':g.ok?'✓':'<i></i>'}</span>
+    <div class="t2-t"><b>${esc(g.t)}</b><small>${esc(g.s)}</small></div></div>`}
 
 function draw(){
   const L=Cart.lines(),n=Cart.count(),tk=$('#tk');let html='';

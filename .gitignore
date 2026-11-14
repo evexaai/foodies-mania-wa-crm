@@ -7,3 +7,7 @@ Thumbs.db
 # Menu cards and posters supplied by the restaurant: reference only, not published
 website/assets/Updated Menu/
 __pycache__/
+
+# the database connection string lives here in development
+.env
+.env.local

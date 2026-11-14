@@ -66,6 +66,11 @@
   ],
   "redirects": [
     {
+      "source": "/api/(.*).js",
+      "destination": "/api/$1",
+      "permanent": false
+    },
+    {
       "source": "/",
       "destination": "/dashboard/",
       "permanent": false
