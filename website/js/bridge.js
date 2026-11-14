@@ -30,6 +30,9 @@ const Bridge=(()=>{
       const mine=read(MK,[]);mine.unshift({id:order.id,placed:order.placed,total:order.total,type:order.type,items:order.items.map(i=>i.qty+'× '+i.name+(i.size?' ('+i.size+')':''))});
       write(MK,mine.slice(0,20));
       ch&&ch.postMessage({type:'order',order});
+      /* the channel never calls the tab it was posted from, so this tab is
+         told separately: the order strip goes up the moment an order leaves */
+      emit({type:'sent',id:order.id});
       return order;
     },
     status(id){return read(SK,{})[id]||null},
@@ -38,18 +41,25 @@ const Bridge=(()=>{
   };
 })();
 
-/* the stages a customer sees, in the CRM's own words */
+/* What the customer is told at each stage, in one place: the order page, the
+   chat ticket and the agent's answers all read it from here.
+   Until the restaurant approves, the customer is told exactly that, because
+   nothing is promised yet. After that the two kinds part ways: a delivery
+   travels to the customer, a pickup waits at the counter. */
 const FM_STAGES={
-  queued:   {n:0,t:'Sent to Foodies Mania',s:'Waiting for the counter to pick it up'},
-  new:      {n:1,t:'Received',s:'The counter is checking your order'},
-  approved: {n:2,t:'Confirmed',s:'Your order is in the kitchen queue'},
-  preparing:{n:2,t:'Cooking',s:'The kitchen is making it right now'},
-  ready:    {n:3,t:'Ready',s:'Packed and waiting for a rider'},
-  out:      {n:4,t:'On the way',s:'Your rider is heading to you'},
-  delivered:{n:5,t:'Delivered',s:'Enjoy, and have some more!'},
-  cancelled:{n:-1,t:'Cancelled',s:'Sorry, this order was cancelled. Please call us.'}
+  queued:   {n:0,t:'Waiting for approval',s:'Sent to Foodies Mania, the counter approves it in a moment'},
+  new:      {n:1,t:'Waiting for approval',s:'The restaurant is checking your order'},
+  approved: {n:2,t:'Approved',s:'Approved by the restaurant, it is going to the kitchen'},
+  preparing:{n:3,t:'Cooking',s:'Your food is on the stove'},
+  ready:    {n:4,t:'Packed',s:'Packed and waiting for a rider'},
+  out:      {n:5,t:'On the way',s:'At your door soon'},
+  delivered:{n:6,t:'Delivered',s:'Enjoy, and have some more!'},
+  cancelled:{n:-1,t:'Cancelled',s:'Sorry, this order was cancelled, please call us'}
 };
 const fmStage=(st,pickup)=>{const x={...(FM_STAGES[st]||FM_STAGES.queued)};
-  if(pickup&&st==='ready'){x.t='Ready for pickup';x.s='Come and collect it from the counter'}
-  if(pickup&&st==='delivered'){x.t='Collected';x.s='Enjoy, and have some more!'}
+  if(pickup){
+    if(st==='approved')x.s=`Approved by the restaurant, ready at the counter in about ${FM_BIZ.pickupEta}`;
+    if(st==='ready'){x.t='Ready for pickup';x.s='Come and collect it from our F.B. Area counter'}
+    if(st==='delivered'){x.t='Collected';x.s='Enjoy, and have some more!'}
+  }else if(st==='approved')x.s=`Approved by the restaurant, at your door in about ${FM_BIZ.eta}`;
   return x};

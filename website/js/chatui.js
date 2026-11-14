@@ -24,7 +24,7 @@ function ChatUI(o){
   function bubble(m,anim){
     const el=document.createElement('div');
     el.className=`msg ${m.who}${m.summary?' sum':''}${anim?' pop':''}`;
-    el.innerHTML=`${m.text?`<div class="bt">${fmt(m.text)}</div>`:''}${m.items?itemsHtml(m.items):''}${o.extra?o.extra(m):''}${m.order?`<a class="ord-link" href="index.html#track=${m.order}">Track order ${esc(m.order)} →</a>`:''}<span class="ts">${hhmm(m.t)}</span>`;
+    el.innerHTML=`${m.text?`<div class="bt">${fmt(m.text)}</div>`:''}${m.items?itemsHtml(m.items):''}${o.extra?o.extra(m):''}${m.order?`<a class="ord-link" href="index.html#track=${m.order}">See order ${esc(m.order)} →</a>`:''}<span class="ts">${hhmm(m.t)}</span>`;
     return el}
   function draw(){
     log.innerHTML='';

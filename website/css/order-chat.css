@@ -129,6 +129,9 @@ body.oc .chat-quick button:hover{background:var(--or);color:#1b0c03;border-color
 .tk-h b{display:block;font-family:var(--f-display);font-size:20px;letter-spacing:-.01em}
 .tk-h small{display:block;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2)}
 .tk-meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink2);padding:10px 0;border-bottom:1px dashed rgba(42,23,11,.25)}
+.tk-r{display:flex;align-items:center;gap:8px}
+.tk-clr{padding:3px 10px;border-radius:999px;border:1px dashed rgba(42,23,11,.4);color:var(--ink2);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;line-height:1.6;transition:all .2s}
+.tk-clr:hover{background:var(--ink);border-color:var(--ink);color:var(--paper)}
 .tk-lines{padding:6px 0}
 .tk-line{display:grid;grid-template-columns:42px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px dotted rgba(42,23,11,.18)}
 .tk-line.new{animation:print .6s var(--ease) .35s backwards}
@@ -198,6 +201,7 @@ body.oc .chat-quick button:hover{background:var(--or);color:#1b0c03;border-color
 .rcpt .tk-edge.bot{background:#fff}
 body.oc .msg.bot .rcpt b{color:var(--ink)}
 body.oc .msg.bot .rcpt .trk-s:not(.done):not(.cur) b{color:var(--ink2)}
+.rcpt .tk-clr{display:none}
 .rcpt .tk-h img{width:36px;height:36px}
 .rcpt .tk-h b{font-size:17px}
 .rcpt .stamp{font-size:18px}

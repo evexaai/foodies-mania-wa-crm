@@ -157,19 +157,46 @@ function checkout(keep){
 let trackOff=null;
 function tracker(id,fresh){
   const mine=Bridge.mine().find(o=>o.id===id)||{};const pickup=mine.type==='pickup';
-  const steps=pickup?[['new','1','Received'],['approved','2','Confirmed'],['preparing','3','Cooking'],['ready','4','Ready for pickup'],['delivered','5','Collected']]
-    :[['new','1','Received'],['approved','2','Confirmed'],['preparing','3','Cooking'],['out','4','On the way'],['delivered','5','Delivered']];
+  const steps=pickup?[['new','1','Order placed'],['approved','2','Approved'],['preparing','3','Cooking'],['ready','4','Ready for pickup'],['delivered','5','Collected']]
+    :[['new','1','Order placed'],['approved','2','Approved'],['preparing','3','Cooking'],['out','4','On the way'],['delivered','5','Delivered']];
   const order=['queued','new','approved','preparing','ready','out','delivered'];
   const paint=()=>{const s=Bridge.status(id);const st=s?s.status:'queued';const g=fmStage(st,pickup);const el=$('#trk');if(!el)return;
     const si=order.indexOf(st);const next=steps.findIndex(x=>order.indexOf(x[0])>si);
     el.innerHTML=st==='cancelled'?`<div class="note-crm" style="color:var(--bad)">${g.s}</div>`:
       `<div class="steps">${steps.map((x,k)=>{const i=order.indexOf(x[0]);const done=si>=i;const cur=k===next;
         return `<div class="step ${done?'done':''} ${cur?'cur':''}"><span class="dot">${done?'✓':x[1]}</span><div><b>${x[2]}</b><small>${x[0]===st||(cur&&!steps.some(y=>y[0]===st))?g.s:''}${x[0]==='out'&&s&&s.rider&&si>=i?' · Rider '+esc(s.rider.split(' ')[0]):''}</small></div></div>`}).join('')}</div>
-       ${st==='queued'?`<div class="note-crm">Demo: the order is waiting in the Foodies Mania CRM. Open the CRM (<a href="../dashboard/" target="_blank" style="color:var(--or2)">localhost</a>) and sign in to see it arrive and move it along.</div>`:''}`};
+       ${st==='queued'?`<div class="note-crm">Demo: this order is waiting for the restaurant. Open the <a href="../dashboard/" target="_blank" style="color:var(--or2)">dashboard</a>, sign in, and approve it to watch this move.</div>`:''}`};
   openModal(`<div class="m-h"><div class="grow">${fresh?'<p class="kicker">Order placed</p>':''}<h3>${fresh?'Shukriya!':'Your order'}</h3><div class="trk-id">${id} · ${mine.total?fmRs(mine.total):''}</div></div><button class="x" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="track"><div id="trk"></div>${mine.items?`<div class="note-crm" style="color:var(--mut)">${mine.items.map(esc).join(' · ')}</div>`:''}</div>
-    <div class="m-f"><a class="btn block" href="order-chat.html">Questions? Chat with us</a></div>`,()=>paint());
+    <div class="m-f"><a class="btn block" href="order-chat.html">Questions? Chat with us</a>${Bridge.mine().length>1?'<button class="btn block" id="trkMore">Your earlier orders</button>':''}</div>`,
+    el=>{paint();const b=$('#trkMore',el);if(b)b.onclick=()=>myOrders()});
   trackOff&&trackOff();trackOff=Bridge.on(m=>{if((m.type==='status'&&m.id===id)||m.type==='status-all'||m.type==='ack')paint()});
+}
+/* ---------- the live order strip ----------
+   There is no "track order" link to hunt for: while an order is live, a strip
+   says where it stands on every page, follows the CRM as the counter works,
+   and leaves once the order is finished. Tapping it opens the full card. */
+const liveOrder=()=>{const now=Date.now();
+  return Bridge.mine().find(o=>{
+    if(now-o.placed>6*3600e3)return false;
+    const s=Bridge.status(o.id);
+    if(!s)return true;                                      // not picked up yet
+    if(s.status==='cancelled')return false;
+    if(s.status==='delivered')return now-(s.t||0)<15*60e3;  // the good news stays up a while
+    return true})};
+function liveBar(){
+  if($('#liveOrd'))return;
+  const el=document.createElement('button');el.id='liveOrd';el.className='live-ord';el.hidden=true;
+  document.body.appendChild(el);
+  const paint=()=>{const o=liveOrder();
+    if(!o){el.hidden=true;return}
+    const s=Bridge.status(o.id),st=s?s.status:'queued',g=fmStage(st,o.type==='pickup');
+    el.hidden=false;el.className='live-ord'+(st==='delivered'?' done':'');
+    el.innerHTML=`<span class="lo-dot" aria-hidden="true"></span><span class="lo-t"><b>${esc(g.t)}</b><small>${esc(o.id)} · ${esc(g.s)}</small></span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>`;
+    el.setAttribute('aria-label',`Order ${o.id}: ${g.t}. Open your order`);
+    el.onclick=()=>tracker(o.id)};
+  paint();Bridge.on(paint);setInterval(paint,60000);
 }
 function myOrders(){
   const L=Bridge.mine();
@@ -360,7 +387,7 @@ function motion(){
     if(window.lenis)lenis.scrollTo(t,{offset:off,duration:instant?0:1.4,immediate:!!instant});else scrollTo({top:t===0?0:t.getBoundingClientRect().top+scrollY+off,behavior:instant?'auto':'smooth'})};
   window.glide=glide;
   /* in-page links glide, and land below the header and the category bar */
-  document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#"],[data-top]');if(!a||a.hasAttribute('data-track'))return;
+  document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#"],[data-top]');if(!a)return;
     const h=a.hasAttribute('data-top')?'#top':a.getAttribute('href');if(h==='#')return;e.preventDefault();
     const t=h==='#top'?0:$(h);if(t===null)return;glide(t);
     if(t&&t.classList&&t.classList.contains('sec'))setTimeout(()=>{const r=t.getBoundingClientRect().top-(top.offsetHeight+(bar?bar.offsetHeight:0));if(Math.abs(r)>4)glide(t,true)},1500)});
@@ -426,7 +453,7 @@ function boot(){
   $('#scrim').onclick=()=>{closeModal();closeDrawer()};
   $('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDrawer()}});
-  $$('[data-track]').forEach(a=>a.onclick=e=>{e.preventDefault();myOrders()});
+  liveBar();
   $('#dots')&&($('#dots').onclick=e=>{const b=e.target.closest('button');if(b)goSlide($$('#dots button').indexOf(b))});
   /* the title rises when the section arrives */
   $('#today')&&new IntersectionObserver((es,o)=>{if(es[0].isIntersecting){$('#today').classList.add('in');o.disconnect()}},{threshold:.2}).observe($('#today'));
@@ -438,7 +465,7 @@ function boot(){
   const lift=()=>{if(document.body.classList.contains('ready'))return;document.body.classList.add('ready');if($('#heroH'))goSlide(0);paintMode()};
   const hi=$('.slide.on img');
   if(hi)Promise.race([hi.decode?hi.decode().catch(()=>{}):Promise.resolve(),new Promise(r=>setTimeout(r,1600))]).then(()=>setTimeout(lift,calm?0:650));else lift();
-  /* menu.html#cat-deal lands on that section; #track=FMW-123456 opens the tracker */
+  /* menu.html#cat-deal lands on that section; #track=FMW-123456 opens that order */
   const sec=location.hash.match(/^#(cat-[\w-]+)$/);if(sec&&$('#'+sec[1])){const go=()=>glide($('#'+sec[1]),true);[80,450,1200].forEach(t=>setTimeout(go,t))}
   const m=location.hash.match(/track=([\w-]+)/);if(m)setTimeout(()=>tracker(m[1]),900);
 }

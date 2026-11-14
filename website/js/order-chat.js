@@ -44,13 +44,15 @@ function placed(id){last={id,t:Date.now()};try{localStorage.setItem(LK,JSON.stri
 const lastMine=()=>last&&Bridge.mine().find(o=>o.id===last.id);
 const lastLive=()=>{if(!last||Date.now()-last.t>6*3600e3)return false;const s=Bridge.status(last.id);return !s||!['delivered','cancelled'].includes(s.status)};
 const t12=ts=>new Date(ts).toLocaleTimeString('en-GB',{hour:'numeric',minute:'2-digit',hour12:true});
+/* the ticket's top line, with the button that clears what is on it */
+const meta=(l,r)=>`<div class="tk-meta"><span>${l}</span><span class="tk-r"><span>${r}</span><button class="tk-clr" id="tkClear" aria-label="Clear the ticket">Clear</button></span></div>`;
 const head=sub=>`<div class="tk-h"><img src="assets/logo.webp" alt=""><b>Foodies Mania</b><small>${sub}</small></div>`;
 
 function trackerHtml(o){
   const pk=o.type==='pickup';const s=Bridge.status(o.id);const st=s?s.status:'queued';const g=fmStage(st,pk);
   if(st==='cancelled')return `<p style="color:#c2410c;font-size:12.5px;padding:8px 0">${g.s}</p>`;
-  const steps=pk?[['new','1','Received'],['approved','2','Confirmed'],['preparing','3','Cooking'],['ready','4','Ready for pickup'],['delivered','5','Collected']]
-    :[['new','1','Received'],['approved','2','Confirmed'],['preparing','3','Cooking'],['out','4','On the way'],['delivered','5','Delivered']];
+  const steps=pk?[['new','1','Order placed'],['approved','2','Approved'],['preparing','3','Cooking'],['ready','4','Ready for pickup'],['delivered','5','Collected']]
+    :[['new','1','Order placed'],['approved','2','Approved'],['preparing','3','Cooking'],['out','4','On the way'],['delivered','5','Delivered']];
   const order=['queued','new','approved','preparing','ready','out','delivered'];const si=order.indexOf(st);const next=steps.findIndex(x=>order.indexOf(x[0])>si);
   return `<div class="trk">${steps.map((x,k)=>{const done=si>=order.indexOf(x[0]);const cur=k===next;
     return `<div class="trk-s ${done?'done':''} ${cur?'cur':''}"><span class="d">${done?'✓':x[1]}</span><div><b>${x[2]}</b>${x[0]===st||(cur&&!steps.some(y=>y[0]===st))?`<small>${g.s}${x[0]==='out'&&s&&s.rider?' · '+esc(s.rider.split(' ')[0]):''}</small>`:''}</div></div>`}).join('')}</div>`}
@@ -59,7 +61,7 @@ function draw(){
   const L=Cart.lines(),n=Cart.count(),tk=$('#tk');let html='';
   if(n){
     const live=lastLive()&&lastMine();
-    html=head('Kitchen ticket · draft')+`<div class="tk-meta"><span>DRAFT</span><span>${t12(Date.now())}</span></div>`+
+    html=head('Kitchen ticket · draft')+meta('DRAFT',t12(Date.now()))+
       (live?`<div class="tk-last" style="margin-top:10px">🔥 <span>Order <b>${live.id}</b> is ${fmStage((Bridge.status(live.id)||{}).status||'queued',live.type==='pickup').t.toLowerCase()}</span></div>`:'')+
       `<div class="tk-lines">${L.map(l=>`<div class="tk-line${printed.has(keyOf(l))?'':' new'}" data-k="${l.id}|${esc(l.size)}"><img src="${fmImg(l.item.img,'-s')}" alt="" decoding="async"><div class="nm">${esc(l.item.name)}${l.size?`<small>${esc(l.size)}</small>`:''}<div class="tk-q" data-id="${l.id}" data-sz="${esc(l.size)}"><button data-d="-1" aria-label="One less">−</button><span>${l.qty}</span><button data-d="1" aria-label="One more">+</button></div></div><span class="pr">${fmRs(l.price*l.qty)}</span></div>`).join('')}</div>
       <div class="tk-tot"><div class="r"><span>${n} item${n>1?'s':''}</span><span>Delivery fee at checkout</span></div><div class="big"><small>Subtotal</small><span>${fmRs(Cart.subtotal())}</span></div></div>
@@ -67,7 +69,7 @@ function draw(){
       <div class="tk-bar"></div><div class="tk-foot">Have some more!</div>`;
   }else if(last&&lastMine()&&Date.now()-last.t<6*3600e3){
     const o=lastMine();
-    html=head('Kitchen ticket')+`<div class="tk-meta"><span>${o.id}</span><span>${t12(o.placed)}</span></div>
+    html=head('Kitchen ticket')+meta(esc(o.id),t12(o.placed))+`
       <div class="tk-lines">${o.items.map(i=>`<div class="tk-line" style="grid-template-columns:1fr"><div class="nm">${esc(i)}</div></div>`).join('')}</div>
       <div class="tk-tot"><div class="big"><small>${o.type==='pickup'?'Pickup':'Delivery'}</small><span>${fmRs(o.total)}</span></div></div>
       <div class="stamp${freshStamp?' slam':''}">Sent to kitchen</div>${trackerHtml(o)}
@@ -79,6 +81,11 @@ function draw(){
   tk.innerHTML=html;L.forEach(l=>printed.add(keyOf(l)));
   $$('.tk-q',tk).forEach(q=>q.onclick=e=>{const b=e.target.closest('[data-d]');if(!b)return;const l=L.find(x=>x.id===q.dataset.id&&x.size===q.dataset.sz);Cart.setQty(l.id,l.size,l.qty+ +b.dataset.d)});
   $('#tkGo')&&($('#tkGo').onclick=()=>ui.send('Checkout'));
+  /* clear takes off what is on the ticket: the draft lines, or the receipt of
+     the last order once it has been read. The chat itself is left alone. */
+  $('#tkClear')&&($('#tkClear').onclick=()=>{
+    if(Cart.count())Cart.clear();
+    else{last=null;try{localStorage.removeItem(LK)}catch{};draw()}});
   $('#tkAgain')&&($('#tkAgain').onclick=()=>$('#in').focus());
 }
 
