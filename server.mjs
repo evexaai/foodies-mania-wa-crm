@@ -22,7 +22,7 @@ const TYPES = {
 
 // Browsers hold this open; every save bumps the token and the page reloads.
 let token = Date.now();
-const watched = ['index.html', 'css', 'js', 'assets', 'website'];
+const watched = ['dashboard', 'website'];
 for (const w of watched) {
   const p = path.join(ROOT, w);
   // Only code changes reload the page. Photos being copied in (a new menu,
@@ -48,13 +48,16 @@ http.createServer((req, res) => {
     return res.end(String(token));
   }
 
-  let rel = url === '/' ? 'index.html' : url.replace(/^\/+/, '');
+  // The root has no page of its own: send it to the dashboard, as on Vercel.
+  if (url === '/') { res.writeHead(302, { location: '/dashboard/' }); return res.end(); }
+
+  let rel = url.replace(/^\/+/, '');
   let file = path.join(ROOT, rel);
 
   // Never serve outside the project folder.
   if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end('Forbidden'); }
 
-  // Folders serve their index.html (the website lives at /website/), and
+  // Folders serve their index.html (/dashboard/ and /website/), and
   // clean URLs like /website/order-chat find order-chat.html, as on Vercel.
   if (fs.existsSync(file) && fs.statSync(file).isDirectory()) {
     if (!url.endsWith('/')) { res.writeHead(301, { location: url + '/' }); return res.end(); }
@@ -72,5 +75,5 @@ http.createServer((req, res) => {
     res.end(buf);
   });
 }).listen(PORT, () => {
-  console.log(`\n  Foodies Mania\n  ➜  CRM:          http://localhost:${PORT}/\n  ➜  Website:      http://localhost:${PORT}/website/\n  ➜  Chat to order: http://localhost:${PORT}/website/order-chat\n  (live reload on; Ctrl+C to stop)\n`);
+  console.log(`\n  Foodies Mania\n  ➜  Dashboard:    http://localhost:${PORT}/dashboard/\n  ➜  Website:      http://localhost:${PORT}/website/\n  ➜  Chat to order: http://localhost:${PORT}/website/order-chat\n  (live reload on; Ctrl+C to stop)\n`);
 });

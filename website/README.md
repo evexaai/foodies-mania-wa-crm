@@ -1,12 +1,12 @@
 # Foodies Mania website
 
 The customer-facing site, a chat widget, and a chat-to-order page. Orders from any
-of them land on the CRM's **Delivery Orders** board, and the customer's tracker
+of them land on the dashboard's **Delivery Orders** board, and the customer's tracker
 follows the order as the counter works it.
 
 ## Run it
 
-From the CRM folder (one level up):
+From the main folder (one level up):
 
 ```sh
 node server.mjs
@@ -16,9 +16,9 @@ node server.mjs
 | --- | --- |
 | Website | http://localhost:5500/website/ |
 | Chat to order | http://localhost:5500/website/order-chat |
-| CRM | http://localhost:5500/ (sign in as `shahnawaz` / `fm@2025`) |
+| Dashboard | http://localhost:5500/dashboard/ (sign in as `shahnawaz` / `fm@2025`) |
 
-To see an order go end to end, keep the CRM open and signed in in one tab, and
+To see an order go end to end, keep the dashboard open and signed in in one tab, and
 place an order on the website or in the chat in another tab of the same browser.
 
 ## Layout

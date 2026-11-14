@@ -6,7 +6,7 @@
   "cleanUrls": true,
   "headers": [
     {
-      "source": "/sw.js",
+      "source": "/dashboard/sw.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -14,12 +14,12 @@
         },
         {
           "key": "Service-Worker-Allowed",
-          "value": "/"
+          "value": "/dashboard/"
         }
       ]
     },
     {
-      "source": "/index.html",
+      "source": "/(dashboard|website)/([^.]*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -28,7 +28,7 @@
       ]
     },
     {
-      "source": "/(css|js)/(.*)",
+      "source": "/(dashboard|website)/(css|js)/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -37,7 +37,7 @@
       ]
     },
     {
-      "source": "/assets/(.*)",
+      "source": "/(dashboard|website)/assets/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -46,7 +46,7 @@
       ]
     },
     {
-      "source": "/manifest.webmanifest",
+      "source": "/dashboard/manifest.webmanifest",
       "headers": [
         {
           "key": "Content-Type",
@@ -56,6 +56,16 @@
     }
   ],
   "redirects": [
+    {
+      "source": "/",
+      "destination": "/dashboard/",
+      "permanent": false
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/dashboard/",
+      "permanent": true
+    },
     {
       "source": "/website",
       "destination": "/website/",

@@ -165,7 +165,7 @@ function tracker(id,fresh){
     el.innerHTML=st==='cancelled'?`<div class="note-crm" style="color:var(--bad)">${g.s}</div>`:
       `<div class="steps">${steps.map((x,k)=>{const i=order.indexOf(x[0]);const done=si>=i;const cur=k===next;
         return `<div class="step ${done?'done':''} ${cur?'cur':''}"><span class="dot">${done?'✓':x[1]}</span><div><b>${x[2]}</b><small>${x[0]===st||(cur&&!steps.some(y=>y[0]===st))?g.s:''}${x[0]==='out'&&s&&s.rider&&si>=i?' · Rider '+esc(s.rider.split(' ')[0]):''}</small></div></div>`}).join('')}</div>
-       ${st==='queued'?`<div class="note-crm">Demo: the order is waiting in the Foodies Mania CRM. Open the CRM (<a href="../" target="_blank" style="color:var(--or2)">localhost</a>) and sign in to see it arrive and move it along.</div>`:''}`};
+       ${st==='queued'?`<div class="note-crm">Demo: the order is waiting in the Foodies Mania CRM. Open the CRM (<a href="../dashboard/" target="_blank" style="color:var(--or2)">localhost</a>) and sign in to see it arrive and move it along.</div>`:''}`};
   openModal(`<div class="m-h"><div class="grow">${fresh?'<p class="kicker">Order placed</p>':''}<h3>${fresh?'Shukriya!':'Your order'}</h3><div class="trk-id">${id} · ${mine.total?fmRs(mine.total):''}</div></div><button class="x" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="track"><div id="trk"></div>${mine.items?`<div class="note-crm" style="color:var(--mut)">${mine.items.map(esc).join(' · ')}</div>`:''}</div>
     <div class="m-f"><a class="btn block" href="order-chat.html">Questions? Chat with us</a></div>`,()=>paint());
